@@ -1,18 +1,16 @@
-# Swarm Simulation Engine - Backend Module
+# Swarm Simulation Engine - Low Latency Offline Module
 
 **Author:** Rahul Wadhwani  
-**Module:** Geospatial Translation & Vision AI  
+**Performance:** < 15ms Latency | $0 Cost
 
 ## Overview
-This module acts as the backend simulation engine for the Multi-Drone Coordination System. Since physical drones cannot be flown for every software test, this engine fakes the drone's telemetry and visual feeds. 
+This module is the high-speed, fully offline backend simulation engine for the Multi-Drone Coordination System. It bypasses network latency by utilizing local maps and pure algorithmic computer vision.
 
-It executes a 3-step pipeline:
-1. **Map Engine:** Bypasses local caching to download a top-down synthetic camera viewport (satellite tile) from Mapbox based on the drone's current GPS location.
-2. **Vision Engine:** Scans the synthetic viewport using a YOLOv8 AI model to detect targets and calculate their exact center-pixel coordinates.
-3. **Geo Engine:** Translates the target's 2D pixel coordinates $(X,Y)$ into real-world Latitude and Longitude coordinates using the Earth's curvature and camera scale.
+* **Map Engine:** Reads a high-resolution local satellite image (`offline_campus.png`) and instantly crops a 600x600 viewport based on the drone's GPS coordinates.
+* **Vision Engine:** Uses an ultra-fast OpenCV HSV color-masking algorithm to track targets and calculate their exact center pixels.
+* **Geo Engine:** Translates 2D pixel coordinates back into real-world Latitude and Longitude using Earth curvature mathematics.
 
-## Prerequisites
-Ensure you have Python installed, then install the required AI and Vision libraries. *(Note: The Map Engine uses Python's built-in `urllib` to prevent environment conflicts, so `requests` is not required).*
-
-```bash
-pip install ultralytics opencv-python
+## Setup
+1. Install the required dependencies:
+   ```bash
+   pip install opencv-python numpy
