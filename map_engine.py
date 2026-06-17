@@ -1,59 +1,45 @@
 import os
-import urllib.request
-import urllib.error
+import cv2
+import numpy as np
 
-def get_map_image(lat, lon, zoom, api_key):
-    """
-    Fetches a satellite image from Mapbox using built-in Python libraries. 
-    Zero pip installations required.
-    """
-    # 1. Create the cache folder automatically if it doesn't exist
+def get_map_image(lat, lon, zoom):
     if not os.path.exists("map_cache"):
         os.makedirs("map_cache")
-        print("📁 Created 'map_cache' directory.")
         
-    # 2. Define the exact filename based on the coordinates
     filename = f"map_cache/map_{lat}_{lon}_{zoom}.png"
     
-    # 3. The Caching Layer: Check if we already have it
     if os.path.exists(filename):
-        print(f"✅ Image found in cache! Loading local file: {filename}")
         return filename
         
-    # 4. The Scraper: If not in cache, download it from Mapbox
-    print(f"⬇️ Image not found in cache. Downloading from Mapbox...")
+    offline_source = "offline_campus.png"
     
-    url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},{zoom},0/600x600?access_token={api_key}"
-    
-    # 5. Save the image using built-in urllib
-    try:
-        with urllib.request.urlopen(url) as response, open(filename, 'wb') as out_file:
-            data = response.read()
-            out_file.write(data)
-        print(f"✅ Success! Image saved to: {filename}")
+    if os.path.exists(offline_source):
+        img = cv2.imread(offline_source)
+        h, w = img.shape[:2]
+        cy, cx = h // 2, w // 2
+        
+        y1 = max(0, cy - 300)
+        y2 = min(h, cy + 300)
+        x1 = max(0, cx - 300)
+        x2 = min(w, cx + 300)
+        
+        crop = img[y1:y2, x1:x2]
+        
+        if crop.shape[:2] != (600, 600):
+            crop = cv2.resize(crop, (600, 600))
+            
+        cv2.imwrite(filename, crop)
         return filename
-    except urllib.error.HTTPError as e:
-        print(f"❌ HTTP Error downloading image: {e.code}")
-        return None
-    except urllib.error.URLError as e:
-        print(f"❌ URL/Network Error: {e.reason}")
-        return None
+    else:
+        blank_image = np.zeros((600, 600, 3), np.uint8)
+        blank_image[:] = (30, 30, 30) 
+        cv2.imwrite(filename, blank_image)
+        return filename
 
-# --- EXECUTION BLOCK ---
 if __name__ == "__main__":
-    # PASTE YOUR MAPBOX KEY HERE (It should start with 'pk.')
-    MY_API_KEY = "pk.eyJ1IjoicmFodWwtMjM4OSIsImEiOiJjbXFjaG9xejkwMHBiMnNyNHcxajVlYnByIn0.lqQuRKDL5s4DlSBvhH0jBQ" 
+    DRONE_LAT = 18.4575
+    DRONE_LON = 73.8508
+    ZOOM = 18
     
-    # Test coordinates (Vishwakarma University area)
-    TEST_LAT = 18.4575  
-    TEST_LON = 73.8508
-    
-    # Zoom level (18 is usually good for drone altitudes)
-    TEST_ZOOM = 18 
-    
-    print("🚀 Starting Map Simulation Engine...")
-    
-    # Run the function
-    image_path = get_map_image(TEST_LAT, TEST_LON, TEST_ZOOM, MY_API_KEY)
-    
-    print("\nTest complete. Check your project folder!")
+    img_path = get_map_image(DRONE_LAT, DRONE_LON, ZOOM)
+    print(img_path)
