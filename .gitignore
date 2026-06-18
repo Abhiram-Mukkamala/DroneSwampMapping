@@ -1,0 +1,15 @@
+.venv/
+env/
+__pycache__/
+*.pyc
+.vscode/
+best.onnx
+*.onnx
+map_cache/
+*.db
+*.sqlite
+dist/
+build/
+venv/
+*.egg-info/
+debug/
