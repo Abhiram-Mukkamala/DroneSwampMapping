@@ -1,57 +1,106 @@
-# DroneSwampMapping — Offline Aerial Target Detection Pipeline
+# DroneSwampMapping — Autonomous Drone Swarm Decision & Mapping Pipeline
 
 **Author:** Rahul Datta Sutar
-**Performance:** ~19–24 ms inference latency | 41–52 FPS throughput | $0 API cost
+**Performance:** ~19–24 ms vision latency | Low-overhead Decision Machine | $0 API cost
 
 ---
 
 ## Overview
 
-DroneSwampMapping is a fully offline, CPU-only aerial target detection pipeline built for drone swarm coordination. It combines a custom-trained **YOLOv8 Nano ONNX** model with a lightweight map engine and a geodetic translation layer to detect targets in satellite / orthomosaic imagery and report their real-world GPS coordinates — all in memory, with no network calls.
+DroneSwampMapping is a fully offline, CPU-optimized simulation framework for autonomous drone fleet navigation and target tracking. It combines a custom-trained **YOLOv8 Nano ONNX** model with a local 2D occupancy grid mapping module, an optimized A* pathfinding search engine, a hierarchical state-machine evaluator, and a simulated swarm telemetry synchronization layer.
+
+The entire coordinator executes fully in RAM on edge hardware with no external cloud or internet dependencies.
 
 ---
 
 ## Architecture
 
 ```
-map_cache/  (aerial images)
-      │
-      ▼
-SyntheticMapEngine        ← map_engine.py
-  Loads & crops viewport (600×600 px) from offline satellite image or map cache
-      │
-      ▼
-YOLOVisionEngine          ← vision_engine.py
-  Resizes frame to 416×416, runs ONNX inference via OpenCV DNN,
-  applies NMS, maps detections back to native canvas coordinates
-      │
-      ▼
-GeoTranslationEngine      ← geo_engine.py
-  Converts pixel (x, y) → real-world (Latitude, Longitude)
-  using Web Mercator projection + Earth-radius math
-      │
-      ▼
-Tracker output / GPS coordinates
+                       map_cache/ (aerial images)
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ SyntheticMapEngine (map_engine.py)                  │
+  │   - Extracts a 600×600 px viewport frame in RAM     │
+  └──────────────────────────┬──────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ YOLOVisionEngine (vision_engine.py)                 │
+  │   - Runs YOLOv8 Nano ONNX inference (416x416 input) │
+  │   - Returns target center pixel coordinates         │
+  └──────────────────────────┬──────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ ObstacleMap (obstacle_map.py)                       │
+  │   - Quantizes 600x600 canvas into 2D grid matrix    │
+  │   - Centers drone position in occupancy grid        │
+  └──────────────────────────┬──────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ DecisionEngine (decision_engine.py)                 │
+  │   - Hierarchical state machine rule evaluator       │
+  │   - Triggers replanning only on path collision      │
+  │   - Applies Reynolds swarm rules if teammate nearby │
+  └─────────────┬──────────────────────────┬────────────┘
+                │                          │
+         [Path Blocked]            [Teammate Nearby]
+                │                          │
+                ▼                          ▼
+  ┌──────────────────────────┐  ┌───────────────────────┐
+  │ AStarPlanner             │  │ Reynolds Repulsion    │
+  │ (path_planning.py)       │  │ (separation vector)   │
+  │   - 8-way path planning  │  │   - Deflects tracking │
+  │   - Obstacle inflation   │  │     steering velocity │
+  └─────────────┬────────────┘  └──────────┬────────────┘
+                │                          │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ GeoTranslationEngine (geo_engine.py)                │
+  │   - Translates grid coordinate back to GPS coords   │
+  └──────────────────────────┬──────────────────────────┘
+                             │
+                             ▼
+       Simulated Movement & Real-time Telemetry Broadcast
 ```
 
 ### Core Modules
 
-| File | Class / Role |
-|---|---|
-| `vision_engine.py` | `YOLOVisionEngine` — ONNX inference, NMS, latency profiling |
-| `map_engine.py` | `SyntheticMapEngine` — In-memory viewport extraction from offline map |
-| `geo_engine.py` | `GeoTranslationEngine` — Pixel-to-GPS coordinate translation |
-| `main.py` | Simulation orchestrator (end-to-end pipeline entry point) |
-| `run_on_map_cache.py` | Batch inference runner on all images in `map_cache/` |
-| `run_local_test.py` | Synthetic canvas unit test for model sanity check |
+| File | Class / Component | Role / Technical Specifications |
+|---|---|---|
+| `vision_engine.py` | `YOLOVisionEngine` | ONNX target detection engine using OpenCV DNN; custom NMS & scaling |
+| `map_engine.py` | `SyntheticMapEngine` | In-memory viewport image generator from offline maps/cached PNGs |
+| `obstacle_map.py` | `ObstacleMap` | Translates canvas target pixels to discrete occupancy matrices (0 = Free, 1 = Obstacle) |
+| `path_planning.py` | `AStarPlanner` | Optimized A* Search with 8-way connectivity, diagonal corner-cutting block, and safety margin inflation |
+| `decision_engine.py` | `DecisionEngine` | State machine rule engine. Triggers detours or calculates Reynolds separation vectors |
+| `decision_engine.py` | `MockTelemetryNetwork` | Synchronizes active drone telemetry profiles and hazard maps |
+| `geo_engine.py` | `GeoTranslationEngine` | Translates 2D coordinates to real-world GPS coordinates (Latitude/Longitude) |
+| `main.py` | Coordinator | Orchestrates the multi-step navigation simulation loop and console ASCII prints |
+| `run_decision_test.py` | Test Suite | 8-case Unit test suite for grid mapping, A* search, state transition, and telemetry |
 
-### Model
+---
 
-- **`best.onnx`** — YOLOv8 Nano, custom-trained for aerial target detection
-- Input size: `416×416` (images are scaled internally; native resolution is preserved for output coordinates)
-- Backend: OpenCV DNN (`DNN_BACKEND_OPENCV`, `DNN_TARGET_CPU`)
-- Confidence threshold: `0.05` (map cache runs) / `0.4` (default)
-- NMS threshold: `0.45`
+## Technical Specifications
+
+### A. Obstacle Occupancy Grid (`obstacle_map.py`)
+- Maps 600x600 canvas coordinate detections to a customizable 2D occupancy grid (e.g. 20x20 or 30x30).
+- Positions the active drone at the dead center `(grid_size // 2, grid_size // 2)` of the grid.
+- Clamps out-of-bounds target coordinates defensively to protect memory.
+
+### B. A* Pathfinding (`path_planning.py`)
+- Standard admissible **Octile Distance** heuristic optimized for 8-way movement.
+- **Corner-Cutting Prevention**: Diagonal moves are blocked if both adjacent orthogonal grid nodes are occupied.
+- **Safety Margin Inflation**: Obstacles are inflated by a configurable safety radius (in cells). If start/goal nodes fall within the safety margin, they are safely cleared to avoid planning deadlocks.
+
+### C. Hierarchical Decision Engine (`decision_engine.py`)
+Runs a high-frequency hierarchical evaluation loop:
+1. **Obstacle Collision Check**: Traces the remaining active path for newly detected hazards. If blocked, it triggers the heavy A* path recalculation.
+2. **Teammate Vicinity Check (Reynolds Separation)**: Calculates Euclidean distance to all team peers in range. If a peer is within a specified radius, computes a repulsion/separation vector ($Force \propto 1/Distance^2$) and deflates/redirects the nominal tracking vector.
+3. **Way-point Tracking**: If path is clear and no teammate is in collision range, proceeds along waypoints.
 
 ---
 
@@ -70,43 +119,35 @@ source .venv/bin/activate
 pip install opencv-python-headless numpy
 ```
 
-> Use `opencv-python` instead of `opencv-python-headless` if you need GUI windows.
-
-### 3. Place your model
-
-Ensure `best.onnx` is in the project root. The model is loaded automatically by all entry-point scripts.
-
 ---
 
 ## Usage
 
-### Run inference on `map_cache/` images
-
-Processes all `.png`, `.jpg`, `.jpeg` images found in `map_cache/` sequentially:
-
-```bash
-python3 run_on_map_cache.py
-```
-
-Run on a specific image:
-
-```bash
-python3 run_on_map_cache.py map_cache/orthomosaic_3.png
-```
-
-### Run the full simulation pipeline
-
-Loads the offline map, extracts a 600×600 viewport at the configured GPS coordinates, runs YOLO detection, and prints real-world GPS positions of all targets:
+### Run the Navigation & Avoidance Simulation Coordinator
+Orchestrates a multi-step simulation where the main drone detects obstacles, plans a route to a boundary waypoint, encounters a teammate blocking the path, executes a Reynolds-based repulsion detour, and broadcasts real-time telemetry updates:
 
 ```bash
 python3 main.py
 ```
 
-Edit `DRONE_LAT`, `DRONE_LON`, and `ZOOM` at the bottom of `main.py` to change the simulation location.
+*Note: Use the virtualenv python if globally unconfigured: `.venv/bin/python main.py`*
 
-### Run the local synthetic canvas test
+### Run Decision & Planning Unit Tests
+Runs the test suite to verify grid translation, A* search connectivity, defensive fallback conditions, state machines, teammate repulsion, and telemetry networks:
 
-Verifies model loading and inference correctness using a synthetic in-memory canvas (no image file required):
+```bash
+python3 run_decision_test.py
+```
+
+### Run Batch Inference on Cache Images
+Runs the vision engine against all cached images in `map_cache/`:
+
+```bash
+python3 run_on_map_cache.py
+```
+
+### Run Local Synthetic Vision Test
+Runs a quick check to verify the YOLOv8 model initializes and detects shapes on a synthetic canvas:
 
 ```bash
 python3 run_local_test.py
@@ -114,66 +155,42 @@ python3 run_local_test.py
 
 ---
 
-## Sample Output
+## Sample Simulation Step Output
 
 ```
-[Vision Loop] Inference Latency (ms): 21.23 | Processing Framerate (FPS): 47.11
-
-=== run_on_map_cache results ===
-Image: map_cache/map_18.4575_73.8508_18.png
-Detected 2 target(s):
-
-  [0] x=233.1627, y=241.5093
-  [1] x=337.5576, y=151.6360
-Single-run latency (ms): 21.31
-
-=== run_on_map_cache results ===
-Image: map_cache/orthomosaic_3.png
-Detected 4 target(s):
-
-  [0] x=643.6283, y=146.9586
-  [1] x=575.0607, y=929.5382
-  [2] x=219.1907, y=250.8185
-  [3] x=90.6124, y=222.8723
-Single-run latency (ms): 23.96
+=================== SIMULATION STEP 4/15 ===================
+[Simulation] Injected a mock hazard at grid (5, 10) for path detour testing.
+Decision State: AVOID_TEAMMATE
+Steering Vector: dy=-0.993, dx=-0.117
+Drone Grid Position: (6, 8) | GPS: 18.458034, 73.850559
++---------------------------------------+
+|. . . . . . . . . . G . . . . . . . . .|
+|. . . . . . . . . * . . . . . . . . . .|
+|. . . . . . . . * . . . . . . . . . . .|
+|. . . . . . . . * . . . . . . . . . . .|
+|. . . . . . . . * . . . . . . . . . . .|
+|. . . . . . . . * . # . . . . . . . . .|
+|. . . . . . . . D . . . . . . . . . . .|
+|. . . . . . . . . * . . . . . . . . . .|
+|. . . . . . . . . . T . . . . . . . . .|
+|. . . . . . . . . . * . . . . . . . . .|
+|. . . . . . . . . . * . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
+|. . . . . . . . . . . . . . . . . . . .|
++---------------------------------------+
 ```
 
----
-
-## Performance
-
-| Metric | Observed Range |
-|---|---|
-| Inference latency | 19 – 24 ms |
-| Processing framerate | 41 – 52 FPS |
-| API cost | $0 (fully offline) |
-| Hardware requirement | CPU only (no GPU needed) |
-
----
-
-## Project Structure
-
-```
-DroneSwampMapping/
-├── best.onnx               # Custom YOLOv8 Nano ONNX model
-├── main.py                 # End-to-end simulation pipeline
-├── vision_engine.py        # YOLOVisionEngine — inference & NMS
-├── map_engine.py           # SyntheticMapEngine — viewport generation
-├── geo_engine.py           # GeoTranslationEngine — pixel → GPS
-├── run_on_map_cache.py     # Batch inference runner on map_cache/
-├── run_local_test.py       # Synthetic canvas unit test
-├── map_cache/              # Directory of aerial / orthomosaic images
-│   ├── map_18.4575_73.8508_18.png
-│   ├── orthomosaic_3.png
-│   └── orthomosaic_4.jpg
-└── yolov8n.pt              # YOLOv8 Nano PyTorch weights (training reference)
-```
-
----
-
-## Notes
-
-- The pipeline is **fully in-memory** — no intermediate files are written during inference.
-- `SyntheticMapEngine` falls back to `map_cache/` if no `offline_campus.png` source is present.
-- Coordinate outputs from `run_on_map_cache.py` are in **native image pixel space**; GPS translation requires running through `main.py` with a known center lat/lon and zoom.
-- `get_map_image()` in `map_engine.py` and `pixel_to_gps()` in `geo_engine.py` are deprecated legacy wrappers kept for backward compatibility.
+### Legend
+*   `D` = Main Drone
+*   `T` = Teammate Drone
+*   `G` = Target Goal Waypoint
+*   `*` = Waypoints on Planned Path
+*   `#` = Obstacle / Hazard (detected or mock injected)
+*   `.` = Free Space

@@ -1,0 +1,164 @@
+import heapq
+import math
+from typing import List, Tuple
+import numpy as np
+
+class AStarPlanner:
+    """
+    Lightweight, highly optimized A* (A-Star) search pathfinding engine
+    operating on a 2D occupancy grid matrix.
+    """
+    def __init__(self, safety_margin: int = 1) -> None:
+        """
+        Initializes the A* Planner.
+        
+        Args:
+            safety_margin: Number of grid cells to inflate around obstacles for defensive margins.
+        """
+        self.safety_margin = safety_margin
+
+    def plan(self, grid: np.ndarray, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Calculates the shortest path from start to goal on the grid matrix.
+        Allows 8-way (orthogonal and diagonal) movement.
+        
+        Args:
+            grid: 2D numpy occupancy matrix where 0 = Free Space, 1 = Obstacle.
+            start: Start cell index (row, col).
+            goal: Target waypoint cell index (row, col).
+            
+        Returns:
+            A list of grid coordinates (row, col) representing the path,
+            or an empty list if planning fails or no path is found.
+        """
+        try:
+            # 1. Defensive verification of parameters
+            if grid is None or len(grid.shape) != 2:
+                return []
+                
+            rows, cols = grid.shape
+            sr, sc = start
+            gr, gc = goal
+            
+            # Boundary check
+            if not (0 <= sr < rows and 0 <= sc < cols) or not (0 <= gr < rows and 0 <= gc < cols):
+                return []
+                
+            # If start is already at the goal, return immediately
+            if start == goal:
+                return [start]
+
+            # 2. Obstacle inflation for safety margins
+            inflated_grid = self._inflate_obstacles(grid)
+            
+            # Defensive check: if start or goal is inside an inflated obstacle,
+            # we temporarily clear them so path planning doesn't fail instantly.
+            inflated_grid[sr, sc] = 0
+            inflated_grid[gr, gc] = 0
+            
+            # 3. Initialize search structures
+            open_set = []
+            heapq.heappush(open_set, (0.0, start))
+            
+            came_from = {}
+            g_score = {start: 0.0}
+            
+            # 8-way movement offsets with movement costs (orthogonal vs diagonal)
+            movements = [
+                # Orthogonal movements (cost = 1.0)
+                (-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
+                # Diagonal movements (cost = sqrt(2) ≈ 1.414)
+                (-1, -1, 1.414), (-1, 1, 1.414), (1, -1, 1.414), (1, 1, 1.414)
+            ]
+            
+            closed_set = set()
+            
+            # 4. Search Loop
+            while open_set:
+                _, current = heapq.heappop(open_set)
+                
+                if current == goal:
+                    # Reconstruct path from came_from pointers
+                    path = []
+                    curr = current
+                    while curr in came_from:
+                        path.append(curr)
+                        curr = came_from[curr]
+                    path.append(start)
+                    path.reverse()
+                    return path
+                    
+                if current in closed_set:
+                    continue
+                closed_set.add(current)
+                
+                cr, cc = current
+                
+                for dr, dc, step_cost in movements:
+                    nr, nc = cr + dr, cc + dc
+                    
+                    # Boundary check
+                    if not (0 <= nr < rows and 0 <= nc < cols):
+                        continue
+                        
+                    # Obstacle check
+                    if inflated_grid[nr, nc] == 1:
+                        continue
+                        
+                    # Corner cutting check: prevent passing diagonally between two diagonal obstacles.
+                    # e.g., if moving from (cr, cc) to (cr+dr, cc+dc) diagonally, 
+                    # verify that both orthogonal adjacent cells are not obstacles.
+                    if dr != 0 and dc != 0:
+                        if inflated_grid[cr + dr, cc] == 1 and inflated_grid[cr, cc + dc] == 1:
+                            continue
+                            
+                    tentative_g = g_score[current] + step_cost
+                    neighbor = (nr, nc)
+                    
+                    if tentative_g < g_score.get(neighbor, float('inf')):
+                        came_from[neighbor] = current
+                        g_score[neighbor] = tentative_g
+                        # Heuristic: Octile distance
+                        h = self._octile_distance(nr, nc, gr, gc)
+                        f = tentative_g + h
+                        heapq.heappush(open_set, (f, neighbor))
+                        
+            return [] # No path found
+            
+        except Exception as e:
+            # Defensive logging & graceful failure
+            print(f"[AStarPlanner] Error during path planning: {e}")
+            return []
+
+    def _inflate_obstacles(self, grid: np.ndarray) -> np.ndarray:
+        """
+        Inflates obstacles on the grid by the safety margin in 2D coordinates.
+        """
+        if self.safety_margin <= 0:
+            return grid.copy()
+            
+        rows, cols = grid.shape
+        inflated = grid.copy()
+        
+        # Find indices of all obstacles
+        obstacle_indices = np.argwhere(grid == 1)
+        
+        for r, c in obstacle_indices:
+            r_min = max(0, r - self.safety_margin)
+            r_max = min(rows - 1, r + self.safety_margin)
+            c_min = max(0, c - self.safety_margin)
+            c_max = min(cols - 1, c + self.safety_margin)
+            # Inflate around the obstacle
+            inflated[r_min : r_max + 1, c_min : c_max + 1] = 1
+            
+        return inflated
+
+    @staticmethod
+    def _octile_distance(r1: int, c1: int, r2: int, c2: int) -> float:
+        """
+        Calculates the octile distance heuristic between two cells, which is
+        ideal for 8-way movement grids.
+        """
+        dr = abs(r1 - r2)
+        dc = abs(c1 - c2)
+        return max(dr, dc) + (1.414 - 1.0) * min(dr, dc)

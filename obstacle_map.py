@@ -1,0 +1,92 @@
+import numpy as np
+from typing import List, Tuple
+
+class ObstacleMap:
+    """
+    Dynamically quantizes a 600x600 image canvas view into a discrete 2D occupancy
+    grid matrix where 0 = Free Space and 1 = Obstacle/Hazard.
+    Keeps track of the drone's position at the dead center of the grid.
+    """
+    def __init__(self, grid_size: int = 30, canvas_size: int = 600) -> None:
+        """
+        Initializes the ObstacleMap.
+        
+        Args:
+            grid_size: Dimension of the square grid (default: 30, resulting in 30x30 cells).
+            canvas_size: The resolution of the image canvas (default: 600 pixels).
+        """
+        self.grid_size = grid_size
+        self.canvas_size = canvas_size
+        self.cell_size = float(canvas_size) / float(grid_size)
+        self.grid = np.zeros((grid_size, grid_size), dtype=np.uint8)
+        
+        # Drone position is locked at the dead center of the grid map
+        self.drone_pos = (grid_size // 2, grid_size // 2)
+
+    def update(self, detected_centers: List[Tuple[float, float]]) -> None:
+        """
+        Converts coordinate list of obstacle centers (pixels) into a 2D grid matrix representation.
+        
+        Args:
+            detected_centers: List of tuples representing (x, y) coordinates of obstacles.
+        """
+        try:
+            # Reset grid to 0 (Free Space)
+            self.grid.fill(0)
+            
+            for x, y in detected_centers:
+                row, col = self.pixel_to_grid(x, y)
+                # Mark coordinate as obstacle
+                self.grid[row, col] = 1
+                
+            # The drone's start position should be free space for path planning
+            self.grid[self.drone_pos[0], self.drone_pos[1]] = 0
+            
+        except Exception as e:
+            # Defensive logging and graceful fallback (keep map empty/unchanged)
+            print(f"[ObstacleMap] Error updating occupancy grid: {e}")
+
+    def pixel_to_grid(self, px: float, py: float) -> Tuple[int, int]:
+        """
+        Translates raw pixel coordinates from the 600x600 canvas to grid (row, col) indices.
+        
+        Args:
+            px: X coordinate in pixels.
+            py: Y coordinate in pixels.
+            
+        Returns:
+            A tuple of (row, col) indices.
+        """
+        col = int(px // self.cell_size)
+        row = int(py // self.cell_size)
+        
+        # Defensive boundary clamp
+        col = max(0, min(col, self.grid_size - 1))
+        row = max(0, min(row, self.grid_size - 1))
+        
+        return row, col
+
+    def grid_to_pixel(self, row: int, col: int) -> Tuple[float, float]:
+        """
+        Translates discrete grid coordinate (row, col) back to canvas pixel coordinate (center of cell).
+        
+        Args:
+            row: Grid row index.
+            col: Grid column index.
+            
+        Returns:
+            A tuple of (x, y) pixel coordinates.
+        """
+        # Defensive boundary clamp
+        row = max(0, min(row, self.grid_size - 1))
+        col = max(0, min(col, self.grid_size - 1))
+        
+        px = (col + 0.5) * self.cell_size
+        py = (row + 0.5) * self.cell_size
+        return px, py
+
+    def get_grid(self) -> np.ndarray:
+        """
+        Returns the raw 2D NumPy array representing the occupancy grid.
+        """
+        return self.grid
