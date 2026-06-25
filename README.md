@@ -1,6 +1,6 @@
 # DroneSwampMapping — Autonomous Drone Swarm Decision & Mapping Pipeline
 
-**Author:** Rahul Datta Sutar
+**Author:** Astra PS17
 **Performance:** ~19–24 ms vision latency | Low-overhead Decision Machine | $0 API cost
 
 ---
