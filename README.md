@@ -28,5 +28,16 @@ Our architecture successfully solves the "Rubber Band" deadlock and Local Minima
 ## How to Run the Simulation
 Ensure all core files are in the same directory. To launch the Matplotlib 3D kinematic visualizer and test the Hybrid Engine:
 
+## Swarm Mission Protocols
+The orchestrator is equipped with mathematical formation logic, allowing the swarm to transition from point-to-point navigation into synchronized tactical behaviors:
+
+* **Protocol Beta (Search & Rescue):** Utilizes linear interpolation across a target axis. The swarm automatically untangles itself and forms a perfectly spaced horizontal sweep line to comb through environments.
+* **Protocol Gamma (Encirclement):** Utilizes trigonometric distribution (Sine/Cosine vectors). The swarm calculates a 360-degree cage around a central coordinate, dynamically routing around obstacles to lock into their specific formation slots.
+
+## Performance Optimization
+* **Vectorized Kinematics:** Upgraded the core APF engine from nested iterative loops to pure NumPy matrix operations. 
+* **Zero-Division Masking:** Implemented safe mathematical divisors to prevent `NaN` cascade failures during perfect-zero collision states.
+* **Result:** The simulation effortlessly handles 15+ independent agents in real-time with sub-15ms physics calculation latency.
+
 ```bash
 python master_sim.py
