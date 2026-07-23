@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>DroneSwarmMapping — 3D Simulator</title>
+  <meta name="description" content="Browser-based drone swarm simulator with Three.js 3D rendering, fixed-timestep physics, and modular architecture for AI/ML integration.">
+
+  <!-- Pinned Three.js r170 — GAP 2: exact version, no @latest -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- Pre-load Three.js as a mutable global for modules that use THREE.* -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ES module namespaces are frozen — spread into a mutable object
+    window.THREE = { ...THREE, OrbitControls };
+
+    // Once THREE is global, load our app
+    import('./main.js');
+  </script>
+
+  <!-- Google Fonts: Inter for clean UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Three.js render target -->
+  <canvas id="viewport"></canvas>
+
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <h2>Drone Swarm</h2>
+
+    <!-- Drone count slider -->
+    <div class="slider-group">
+      <label>
+        Drones
+        <span id="drone-count">10</span>
+      </label>
+      <input type="range" id="drone-slider" min="1" max="100" value="10">
+    </div>
+
+    <!-- Play/Pause + Reset -->
+    <div class="btn-group">
+      <button class="btn" id="play-pause-btn">⏸ Pause</button>
+      <button class="btn" id="reset-btn">↺ Reset</button>
+    </div>
+
+    <!-- Live Stats -->
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-label">FPS</div>
+        <div class="stat-value" id="stat-fps">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Physics</div>
+        <div class="stat-value" id="stat-physics">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Count</div>
+        <div class="stat-value" id="stat-count">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Battery</div>
+        <div class="stat-value" id="stat-battery">--</div>
+      </div>
+    </div>
+
+    <div class="panel-footer">DroneSwarmMapping v1.0 — Phase 1</div>
+  </div>
+
+</body>
+</html>
