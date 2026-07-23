@@ -1,43 +1,60 @@
-# Swarm Robotics: Hybrid A* & Artificial Potential Fields (APF) Architecture
+# DroneSwampMapping - Pipeline & Comms Mainframe
 
-## Overview
-This repository contains a locally hosted, offline-capable 3D physics simulation for drone swarm kinematics. The system utilizes a **Hybrid AI Decision Engine** that bridges discrete grid-based global routing with continuous, real-time physics and vector math.
+## Architecture Overview
+This module serves as the central nervous system for the DroneSwampMapping simulator. We engineered an asynchronous WebSocket server that acts as a real-time data router. It enforces strict JSON contracts between the perception module (YOLOv8), the decision engine (ML Brain), and the visualization layer (Frontend). 
 
-Our architecture successfully solves the "Rubber Band" deadlock and Local Minima traps often found in swarm robotics by cleanly separating Macro-navigation from Micro-kinematics.
+**Core capabilities implemented:**
+* **Perception Translation:** Ingests raw YOLO bounding boxes and mathematically converts them into a 2D hazard grid.
+* **Telemetry Aggregation:** Captures live flight data from multiple simulated drones simultaneously and merges them into a single global state object.
 
-## Core Architecture
+---
 
-### 1. The Macro Brain (A* Global Planner)
-* **File:** `path_planning.py`
-* **Function:** Analyzes the global 2D grid and generates a safe, optimal list of rigid 3D waypoints. 
-* **Update:** We increased the obstacle `safety_margin` to force the global pathing to route completely outside of the APF forcefields, preventing algorithm crossfire.
+## Files Added
 
-### 2. The Orchestrator (Decision Engine)
-* **File:** `decision_engine.py`
-* **Function:** Acts as the bridge between the A* grid and the continuous physics engine.
-* **Update:** Stripped out legacy Reynolds Boids math (which violently conflicted with APF repulsion). Implemented **Pure Pursuit Lookahead Logic** (`curr_idx + 2`). Instead of panicking when a drone gets bumped off the exact grid path, the engine dynamically re-anchors the drone to the next upcoming waypoint, allowing for smooth, sweeping aerodynamic turns.
+* `data_pipeline.py`
+  The core asynchronous WebSocket server. It contains the `PipelineNode` class for data translation and the `communication_router` for handling live network traffic on `ws://localhost:8765`.
+* `test_client.py`
+  A mock perception client. It simulates the YOLOv8 module connecting to the mainframe and beaming a fake payload of bounding boxes to test the hazard map generation.
+* `test_telemetry.py`
+  A mock drone client. It simulates two distinct drones (Drone 1 and Drone 3) sending concurrent flight data to verify the server can aggregate multiple streams without data loss.
+* `README.md`
+  This documentation file.
 
-### 3. The Reflexes (APF Kinematics)
-* **File:** `perfect_swarm.py`
-* **Function:** Calculates real-time velocity, inertia smoothing, and surface-boundary repulsion. 
-* **Update:** Replaced hardcoded collision detection with a mathematically guaranteed 2.0m repulsion safety bubble. Injected **Stochastic Noise (Escape Vectors)** to automatically break drones out of zero-velocity Local Minima dead zones. 
+---
 
-### 4. Vision & Telemetry (The Network)
-* **Integration:** Converts live VisDrone ONNX bounding boxes into dynamic APF obstacles in real-time. The swarm uses a mock telemetry mesh to share target and obstacle coordinates, ensuring unified swarm intelligence without relying on external APIs.
+## Strict Data Contracts
 
-## How to Run the Simulation
-Ensure all core files are in the same directory. To launch the Matplotlib 3D kinematic visualizer and test the Hybrid Engine:
+| Module | Packet Type | JSON Payload Shape | Description |
+| :--- | :--- | :--- | :--- |
+| **YOLOv8 (In)** | `yolo_detections` | `{"class": "obstacle", "bbox": [x,y,w,h], "confidence": 0.9}` | Raw bounding boxes from synthetic vision. |
+| **Pipeline (Out)** | `hazard_map` | `{"grid": [[0,1...]], "cellSize": 5}` | 2D mapped array of obstacles for pathfinding. |
+| **Drones (In)** | `telemetry` | `{"droneId": 1, "pos": [x,y,z], "vel": [x,y,z], "battery": 0.9}` | Live flight data from individual drones. |
+| **Pipeline (Out)** | `global_telemetry` | `{"1": {drone_data}, "3": {drone_data}}` | Aggregated global state for the Frontend renderer. |
 
-## Swarm Mission Protocols
-The orchestrator is equipped with mathematical formation logic, allowing the swarm to transition from point-to-point navigation into synchronized tactical behaviors:
+---
 
-* **Protocol Beta (Search & Rescue):** Utilizes linear interpolation across a target axis. The swarm automatically untangles itself and forms a perfectly spaced horizontal sweep line to comb through environments.
-* **Protocol Gamma (Encirclement):** Utilizes trigonometric distribution (Sine/Cosine vectors). The swarm calculates a 360-degree cage around a central coordinate, dynamically routing around obstacles to lock into their specific formation slots.
+## Step-by-Step Testing Guide
 
-## Performance Optimization
-* **Vectorized Kinematics:** Upgraded the core APF engine from nested iterative loops to pure NumPy matrix operations. 
-* **Zero-Division Masking:** Implemented safe mathematical divisors to prevent `NaN` cascade failures during perfect-zero collision states.
-* **Result:** The simulation effortlessly handles 15+ independent agents in real-time with sub-15ms physics calculation latency.
+### Phase 1: Environment Setup
+1. Open your terminal.
+2. Install the required local network and math dependencies:
+   `pip install websockets numpy`
 
-```bash
-python master_sim.py
+### Phase 2: Booting the Mainframe
+1. Open a primary terminal window.
+2. Execute the server script:
+   `python data_pipeline.py`
+3. Ensure the terminal outputs: `🚀 Pipeline Mainframe LIVE on ws://localhost:8765`
+4. **Leave this terminal running.**
+
+### Phase 3: Testing Perception Routing (Route 1)
+1. Open a secondary terminal window.
+2. Execute the perception simulation:
+   `python test_client.py`
+3. **Expected Result:** The script will connect to the mainframe, send fake bounding boxes, and instantly receive a formatted JSON object containing a `grid` array and `"cellSize": 5`.
+
+### Phase 4: Testing Swarm Telemetry (Route 2)
+1. Keep the primary terminal running the mainframe.
+2. In your secondary terminal, execute the drone simulation:
+   `python test_telemetry.py`
+3. **Expected Result:** The script will simulate Drone 1 and Drone 3 sending flight data. The mainframe will reply with a merged `global_telemetry` JSON object containing the live data of both drones simultaneously.

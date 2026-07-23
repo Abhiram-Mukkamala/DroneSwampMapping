@@ -1,0 +1,70 @@
+import json
+import numpy as np
+
+class PipelineNode:
+    def __init__(self, grid_width, grid_height, cell_size):
+        self.grid = np.zeros((grid_height, grid_width), dtype=int)
+        self.cell_size = cell_size
+        self.telemetry_stream = {}
+
+    def process_yolo_detections(self, json_payload):
+        detections = json.loads(json_payload)
+        self.grid.fill(0)
+        
+        for det in detections:
+            if det["class"] == "obstacle":
+                x, y, w, h = det["bbox"]
+                gx = int(x // self.cell_size)
+                gy = int(y // self.cell_size)
+                gw = max(1, int(w // self.cell_size))
+                gh = max(1, int(h // self.cell_size))
+                
+                self.grid[gy:gy+gh, gx:gx+gw] = 1
+                
+        return self.broadcast_hazard_map()
+
+    def broadcast_hazard_map(self):
+        return json.dumps({
+            "grid": self.grid.tolist(),
+            "cellSize": self.cell_size
+        })
+
+    def process_drone_telemetry(self, json_payload):
+        data = json.loads(json_payload)
+        drone_id = data.get("droneId")
+        if drone_id is not None:
+            self.telemetry_stream[drone_id] = data
+        return json.dumps(self.telemetry_stream)
+
+import asyncio
+import websockets
+
+# Initialize your pipeline engine
+pipeline = PipelineNode(grid_width=100, grid_height=100, cell_size=5)
+
+async def communication_router(websocket):
+    print("New module connected to the Pipeline.")
+    async for message in websocket:
+        try:
+            packet = json.loads(message)
+            
+            # ROUTE 1: YOLOv8 sends bounding boxes -> You output a hazard map
+            if packet.get("type") == "yolo_detections":
+                hazard_map = pipeline.process_yolo_detections(json.dumps(packet["payload"]))
+                await websocket.send(json.dumps({"type": "hazard_map", "payload": json.loads(hazard_map)}))
+                
+            # ROUTE 2: Drones send live telemetry -> You update the global state
+            elif packet.get("type") == "telemetry":
+                global_state = pipeline.process_drone_telemetry(json.dumps(packet["payload"]))
+                await websocket.send(json.dumps({"type": "global_telemetry", "payload": json.loads(global_state)}))
+                
+        except Exception as e:
+            print(f"Pipeline Routing Error: {e}")
+
+async def start_mainframe():
+    async with websockets.serve(communication_router, "localhost", 8765):
+        print("🚀 Pipeline Mainframe LIVE on ws://localhost:8765")
+        await asyncio.Future()  # Run forever
+
+if __name__ == "__main__":
+    asyncio.run(start_mainframe())

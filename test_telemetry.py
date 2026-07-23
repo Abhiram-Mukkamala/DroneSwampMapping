@@ -1,0 +1,52 @@
+import asyncio
+import websockets
+import json
+
+async def test_drone_telemetry():
+    uri = "ws://localhost:8765"
+    
+    try:
+        async with websockets.connect(uri) as websocket:
+            print("✅ Connected to Mainframe!")
+            
+            # Simulate Drone 1 sending its live telemetry
+            drone_1_payload = {
+                "type": "telemetry",
+                "payload": { 
+                    "droneId": 1, 
+                    "pos": [10.5, 20.0, 15.0], 
+                    "vel": [1.0, 0.5, 0.0], 
+                    "battery": 0.95, 
+                    "detections": [] 
+                }
+            }
+            
+            # Simulate Drone 3 sending its live telemetry a fraction of a second later
+            drone_3_payload = {
+                "type": "telemetry",
+                "payload": { 
+                    "droneId": 3, 
+                    "pos": [45.2, 18.5, 20.0], 
+                    "vel": [-1.2, 0.0, 0.5], 
+                    "battery": 0.82, 
+                    "detections": ["obstacle_1"] 
+                }
+            }
+            
+            print("\n📡 Drone 1 beaming telemetry...")
+            await websocket.send(json.dumps(drone_1_payload))
+            response_1 = await websocket.recv()
+            
+            print("📡 Drone 3 beaming telemetry...")
+            await websocket.send(json.dumps(drone_3_payload))
+            response_2 = await websocket.recv()
+            
+            print("\n📥 Final Global Telemetry State from Pipeline:")
+            parsed_response = json.loads(response_2)
+            print(json.dumps(parsed_response, indent=2))
+            
+    except ConnectionRefusedError:
+        print("❌ Connection failed. Is data_pipeline.py running?")
+
+if __name__ == "__main__":
+    asyncio.run(test_drone_telemetry())
