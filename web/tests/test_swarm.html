@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VectorSwarm Fixture Verification</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: #0a0e1c;
+      color: #c0d0e8;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    h1 { color: #7eb8f0; margin-bottom: 8px; font-size: 18px; }
+    h2 { color: #5a8abf; margin: 24px 0 8px; font-size: 15px; }
+    .meta { color: #556677; font-size: 12px; margin-bottom: 20px; }
+    table {
+      border-collapse: collapse;
+      margin: 8px 0 16px;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 6px 12px;
+      border: 1px solid #1a2332;
+      text-align: right;
+    }
+    th { background: #111a27; color: #7eb8f0; font-weight: 600; }
+    td { background: #0d1117; }
+    .pass { color: #4ade80; }
+    .warn { color: #fbbf24; }
+    .fail { color: #f87171; }
+    .summary-box {
+      background: #111a27;
+      border: 1px solid #1a2332;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .summary-box.pass-box { border-color: #4ade80; }
+    .summary-box.fail-box { border-color: #f87171; }
+    pre {
+      background: #111a27;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      margin: 8px 0;
+    }
+    #status { font-size: 14px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>VectorSwarm JS Port — Fixture Verification</h1>
+  <div class="meta">
+    Compares JS VectorSwarm output against Python reference (fixture_snapshot.json).<br>
+    Tolerance: 0.5m per position axis. RNG divergence expected (different PRNG algorithms).
+  </div>
+  <div id="status">Loading fixture...</div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { VectorSwarm, Obstacle } from '../swarm/VectorSwarm.js';
+
+    const statusEl = document.getElementById('status');
+    const resultsEl = document.getElementById('results');
+    const TOLERANCE = 0.5;  // meters — generous due to RNG mismatch
+
+    async function run() {
+      // 1. Load fixture
+      statusEl.textContent = 'Loading fixture_snapshot.json...';
+      let fixture;
+      try {
+        const resp = await fetch('fixture_snapshot.json');
+        fixture = await resp.json();
+      } catch (e) {
+        statusEl.innerHTML = `<span class="fail">Failed to load fixture: ${e.message}</span>`;
+        return;
+      }
+
+      const { meta, scenario, checkpoints, summary } = fixture;
+      statusEl.textContent = 'Running JS VectorSwarm...';
+
+      // 2. Create VectorSwarm with identical scenario
+      const obstacles = scenario.obstacles.map(
+        o => new Obstacle(o.pos, o.radius, o.height)
+      );
+      const swarm = new VectorSwarm(scenario.starts, scenario.targets);
+
+      // 3. Run 300 ticks, capture checkpoints
+      const TOTAL_STEPS = meta.total_steps;
+      const STEP_SIZE = meta.step_size;
+      const checkpointTicks = Object.keys(checkpoints).map(Number).sort((a, b) => a - b);
+
+      const jsCheckpoints = {};
+
+      for (let step = 0; step <= TOTAL_STEPS; step++) {
+        if (checkpointTicks.includes(step)) {
+          jsCheckpoints[step] = {
+            positions: swarm.pos.map(p => [
+              parseFloat(p[0].toFixed(6)),
+              parseFloat(p[1].toFixed(6)),
+              parseFloat(p[2].toFixed(6)),
+            ]),
+            velocities: swarm.vel.map(v => [
+              parseFloat(v[0].toFixed(6)),
+              parseFloat(v[1].toFixed(6)),
+              parseFloat(v[2].toFixed(6)),
+            ]),
+          };
+        }
+        if (step < TOTAL_STEPS) {
+          swarm.update(obstacles, STEP_SIZE);
+        }
+      }
+
+      statusEl.textContent = 'Comparing results...';
+
+      // 4. Compare at each checkpoint
+      let html = '';
+      let allPass = true;
+      let maxDeltaOverall = 0;
+
+      html += '<h2>Per-Checkpoint Position Deltas</h2>';
+
+      for (const tick of checkpointTicks) {
+        const pyPos = checkpoints[tick].positions;
+        const jsPos = jsCheckpoints[tick].positions;
+
+        // Compute per-drone euclidean position delta
+        const deltas = [];
+        let maxDelta = 0;
+        for (let i = 0; i < pyPos.length; i++) {
+          const dx = jsPos[i][0] - pyPos[i][0];
+          const dy = jsPos[i][1] - pyPos[i][1];
+          const dz = jsPos[i][2] - pyPos[i][2];
+          const delta = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          deltas.push(delta);
+          maxDelta = Math.max(maxDelta, delta);
+        }
+        maxDeltaOverall = Math.max(maxDeltaOverall, maxDelta);
+
+        const meanDelta = deltas.reduce((s, d) => s + d, 0) / deltas.length;
+        const tickPass = maxDelta < TOLERANCE;
+        if (!tickPass) allPass = false;
+
+        const statusClass = maxDelta < 0.01 ? 'pass'
+                          : maxDelta < TOLERANCE ? 'warn'
+                          : 'fail';
+
+        html += `<table>`;
+        html += `<tr><th colspan="${pyPos.length + 3}">Tick ${tick} — max Δ = ${maxDelta.toFixed(4)}m, mean Δ = ${meanDelta.toFixed(4)}m <span class="${statusClass}">${tickPass ? '✓ PASS' : '✗ FAIL'}</span></th></tr>`;
+        html += `<tr><th>Drone</th>`;
+        for (let i = 0; i < pyPos.length; i++) html += `<th>${i}</th>`;
+        html += `<th>Max</th><th>Mean</th></tr>`;
+
+        // Position delta row
+        html += `<tr><td style="text-align:left">Pos Δ (m)</td>`;
+        for (const d of deltas) {
+          const cls = d < 0.01 ? 'pass' : d < TOLERANCE ? 'warn' : 'fail';
+          html += `<td class="${cls}">${d.toFixed(4)}</td>`;
+        }
+        html += `<td class="${statusClass}">${maxDelta.toFixed(4)}</td>`;
+        html += `<td>${meanDelta.toFixed(4)}</td></tr>`;
+
+        // Per-axis breakdown for max-delta drone
+        const worstDrone = deltas.indexOf(Math.max(...deltas));
+        html += `<tr><td style="text-align:left; color:#556677">Worst (drone ${worstDrone})</td>`;
+        html += `<td colspan="${pyPos.length + 2}" style="text-align:left; color:#556677">`;
+        html += `Py=[${pyPos[worstDrone].map(v => v.toFixed(3)).join(', ')}] `;
+        html += `JS=[${jsPos[worstDrone].map(v => v.toFixed(3)).join(', ')}] `;
+        const dxW = jsPos[worstDrone][0] - pyPos[worstDrone][0];
+        const dyW = jsPos[worstDrone][1] - pyPos[worstDrone][1];
+        const dzW = jsPos[worstDrone][2] - pyPos[worstDrone][2];
+        html += `Δ=[${dxW.toFixed(4)}, ${dyW.toFixed(4)}, ${dzW.toFixed(4)}]`;
+        html += `</td></tr>`;
+
+        html += `</table>`;
+      }
+
+      // 5. Final summary comparison
+      html += '<h2>Final Summary (tick 300)</h2>';
+      const pyFinalDist = summary.final_distance_to_target;
+      const jsFinalPos = jsCheckpoints[300].positions;
+      const jsFinalDist = jsFinalPos.map((p, i) => {
+        const t = scenario.targets[i];
+        const dx = p[0] - t[0];
+        const dy = p[1] - t[1];
+        const dz = p[2] - t[2];
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+      });
+      const jsMaxDist = Math.max(...jsFinalDist);
+      const jsMeanDist = jsFinalDist.reduce((s, d) => s + d, 0) / jsFinalDist.length;
+
+      html += `<table>`;
+      html += `<tr><th>Metric</th><th>Python</th><th>JS</th><th>Δ</th></tr>`;
+      html += `<tr><td>Max dist to target</td><td>${summary.max_final_distance_to_target.toFixed(4)}</td>`;
+      html += `<td>${jsMaxDist.toFixed(4)}</td>`;
+      html += `<td>${Math.abs(jsMaxDist - summary.max_final_distance_to_target).toFixed(4)}</td></tr>`;
+      html += `<tr><td>Mean dist to target</td><td>${summary.mean_final_distance_to_target.toFixed(4)}</td>`;
+      html += `<td>${jsMeanDist.toFixed(4)}</td>`;
+      html += `<td>${Math.abs(jsMeanDist - summary.mean_final_distance_to_target).toFixed(4)}</td></tr>`;
+      html += `</table>`;
+
+      // 6. Divergence trend (is it growing or bounded?)
+      html += '<h2>Divergence Trend</h2>';
+      html += '<pre>';
+      const trendData = [];
+      for (const tick of checkpointTicks) {
+        const pyPos = checkpoints[tick].positions;
+        const jsPos = jsCheckpoints[tick].positions;
+        let maxD = 0;
+        for (let i = 0; i < pyPos.length; i++) {
+          const dx = jsPos[i][0] - pyPos[i][0];
+          const dy = jsPos[i][1] - pyPos[i][1];
+          const dz = jsPos[i][2] - pyPos[i][2];
+          maxD = Math.max(maxD, Math.sqrt(dx*dx + dy*dy + dz*dz));
+        }
+        trendData.push({ tick, maxDelta: maxD });
+        const bar = '█'.repeat(Math.round(maxD * 100));
+        const barWarn = maxD > TOLERANCE ? ' ← EXCEEDS TOLERANCE' : '';
+        html += `Tick ${String(tick).padStart(3)}: max Δ = ${maxD.toFixed(4).padStart(8)}m  ${bar}${barWarn}\n`;
+      }
+      html += '</pre>';
+
+      // Is divergence growing?
+      const firstNonZero = trendData.find(t => t.maxDelta > 0);
+      const lastEntry = trendData[trendData.length - 1];
+      const growing = lastEntry.maxDelta > (firstNonZero?.maxDelta || 0) * 5;
+
+      // 7. Overall verdict
+      const verdictClass = allPass ? 'pass-box' : 'fail-box';
+      html += `<div class="summary-box ${verdictClass}">`;
+      if (allPass) {
+        html += `<span class="pass" style="font-size:16px; font-weight:bold">✓ ALL CHECKPOINTS PASS</span>`;
+        html += `<br>Max position delta across all ticks: ${maxDeltaOverall.toFixed(4)}m (tolerance: ${TOLERANCE}m)`;
+        if (growing) {
+          html += `<br><span class="warn">⚠ Divergence trend is growing — likely RNG-driven, check if it stays bounded with more ticks.</span>`;
+        } else {
+          html += `<br><span class="pass">Divergence is bounded — port is numerically correct.</span>`;
+        }
+      } else {
+        html += `<span class="fail" style="font-size:16px; font-weight:bold">✗ SOME CHECKPOINTS EXCEED TOLERANCE</span>`;
+        html += `<br>Max position delta: ${maxDeltaOverall.toFixed(4)}m (tolerance: ${TOLERANCE}m)`;
+        html += `<br><span class="fail">This suggests a force calculation bug, not just RNG mismatch. Investigate the worst checkpoint above.</span>`;
+      }
+      html += `</div>`;
+
+      resultsEl.innerHTML = html;
+      statusEl.textContent = allPass ? '✓ Verification complete — PASS' : '✗ Verification complete — FAIL';
+    }
+
+    run().catch(e => {
+      statusEl.innerHTML = `<span class="fail">Error: ${e.message}</span>`;
+      console.error(e);
+    });
+  </script>
+</body>
+</html>
