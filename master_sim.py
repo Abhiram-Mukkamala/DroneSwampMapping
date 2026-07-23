@@ -5,8 +5,10 @@ from path_planning import AStarPlanner
 from decision_engine import DecisionEngine
 from perfect_swarm import VectorSwarm, Obstacle
 
+
 def grid_to_world(grid_pos, cell_size=5.0):
     return (grid_pos[1] * cell_size + 2.5, grid_pos[0] * cell_size + 2.5, 20.0)
+
 
 def draw_cylinder(ax, pos, radius, height, color, alpha=0.3):
     z = np.linspace(0, height, 2)
@@ -15,6 +17,7 @@ def draw_cylinder(ax, pos, radius, height, color, alpha=0.3):
     x_grid = radius * np.cos(theta_grid) + pos[0]
     y_grid = radius * np.sin(theta_grid) + pos[1]
     ax.plot_surface(x_grid, y_grid, z_grid, color=color, alpha=alpha)
+
 
 grid_map = np.zeros((20, 20))
 planner = AStarPlanner(safety_margin=1)
@@ -54,32 +57,34 @@ for obs in static_obstacles:
         z = np.zeros(1)
         dx = np.ones(1) * (obs.radius * 2)
         dy = np.ones(1) * (obs.radius * 2)
-        dz = np.ones(1) * obs.height 
+        dz = np.ones(1) * obs.height
         ax.bar3d(obs.pos[0] - obs.radius, obs.pos[1] - obs.radius, z, dx, dy, dz, color='gray', alpha=0.3)
 
 ax.set_xlim(0, 100)
 ax.set_ylim(0, 100)
 ax.set_zlim(0, 30)
 
+
 def update(frame):
     for i in range(n_drones):
         brain = brains[i+1]
         grid_pos = (int(swarm.pos[i, 1] // 5.0), int(swarm.pos[i, 0] // 5.0))
         goal_pos = (int(target_positions[i][1] // 5.0), int(target_positions[i][0] // 5.0))
-        
+
         state, path, next_grid_waypoint = brain.evaluate(grid_map, grid_pos, goal_pos)
         next_world_waypoint = grid_to_world(next_grid_waypoint)
         swarm.targets[i] = next_world_waypoint
 
     swarm.update(static_obstacles)
-        
+
     history = np.array(swarm.history)
     for i in range(n_drones):
         scatters[i]._offsets3d = (history[-1:, i, 0], history[-1:, i, 1], history[-1:, i, 2])
         lines[i].set_data(history[:, i, 0], history[:, i, 1])
         lines[i].set_3d_properties(history[:, i, 2])
-        
+
     return scatters + lines
+
 
 ani = animation.FuncAnimation(fig, update, frames=300, interval=30, blit=False)
 plt.show()

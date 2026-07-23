@@ -49,6 +49,14 @@ export class Drone {
     this.heading = 0;          // radians, derived from XZ velocity
     this.battery = opts.battery ?? 1.0;
     this.status = 'idle';      // 'idle' | 'active' | 'low_battery' | 'dead'
+
+    /**
+     * When true, update() skips kinematic integration (pos += vel * dt)
+     * because an external module (e.g., swarm AI) has already set the
+     * position directly. Auto-resets to false after each update() call.
+     * Heading, battery, and status logic still runs.
+     */
+    this._positionManagedExternally = false;
   }
 
   /**
@@ -58,10 +66,13 @@ export class Drone {
   update(dt) {
     if (this.status === 'dead') return;
 
-    // --- Kinematic integration ---
-    this.position.x += this.velocity.x * dt;
-    this.position.y += this.velocity.y * dt;
-    this.position.z += this.velocity.z * dt;
+    // --- Kinematic integration (skip if swarm module set position directly) ---
+    if (!this._positionManagedExternally) {
+      this.position.x += this.velocity.x * dt;
+      this.position.y += this.velocity.y * dt;
+      this.position.z += this.velocity.z * dt;
+    }
+    this._positionManagedExternally = false;
 
     // --- Boundary clamping with velocity kill on collision ---
     if (this.position.x < WORLD.minX) {

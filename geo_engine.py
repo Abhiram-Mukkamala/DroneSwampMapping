@@ -47,12 +47,14 @@ class GeoTranslationEngine:
             print(f"[GeoTranslationEngine] Exception in coordinate translation: {e}")
             return self.center_lat, self.center_lon
 
+
 def pixel_to_gps(center_lat: float, center_lon: float, zoom: int, img_width: int, img_height: int, target_x: float, target_y: float) -> Tuple[float, float]:
     """
     Deprecated: Deprecated function for backward compatibility.
     """
     engine = GeoTranslationEngine(center_lat, center_lon, zoom, img_width, img_height)
     return engine.pixel_to_gps(target_x, target_y)
+
 
 if __name__ == "__main__":
     DRONE_LAT = 18.4575
