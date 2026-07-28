@@ -1,0 +1,11 @@
+# Dependencies are installed directly in Dockerfile layers for reliability.
+# This file is kept for documentation only.
+#
+# torch (CPU) - from https://download.pytorch.org/whl/cpu
+# torchvision (CPU)
+# opencv-python-headless
+# ultralytics
+# fastapi
+# uvicorn
+# python-multipart
+# pillow

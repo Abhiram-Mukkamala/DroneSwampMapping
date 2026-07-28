@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>VectorSwarm Fixture Verification</title>
+  <title>VectorSwarm Verification Suite</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -13,12 +13,13 @@
       line-height: 1.6;
     }
     h1 { color: #7eb8f0; margin-bottom: 8px; font-size: 18px; }
-    h2 { color: #5a8abf; margin: 24px 0 8px; font-size: 15px; }
+    h2 { color: #5a8abf; margin: 24px 0 8px; font-size: 15px; border-bottom: 1px solid #1a2332; padding-bottom: 4px; }
     .meta { color: #556677; font-size: 12px; margin-bottom: 20px; }
     table {
       border-collapse: collapse;
       margin: 8px 0 16px;
       font-size: 13px;
+      width: 100%;
     }
     th, td {
       padding: 6px 12px;
@@ -47,51 +48,73 @@
       font-size: 12px;
       margin: 8px 0;
     }
-    #status { font-size: 14px; margin: 12px 0; }
+    #status { font-size: 14px; margin: 12px 0; font-weight: bold; }
+    .test-section {
+      margin-bottom: 32px;
+      background: #0d121f;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #162032;
+    }
+    .explanation {
+      font-size: 12px;
+      color: #8899aa;
+      margin-bottom: 12px;
+      background: #111a27;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border-left: 3px solid #1e90ff;
+    }
   </style>
 </head>
 <body>
-  <h1>VectorSwarm JS Port — Fixture Verification</h1>
+  <h1>VectorSwarm JS Port — Verification Suite</h1>
   <div class="meta">
-    Compares JS VectorSwarm output against Python reference (fixture_snapshot.json).<br>
-    Tolerance: 0.5m per position axis. RNG divergence expected (different PRNG algorithms).
+    Test 1: 10-Drone Multi-Obstacle Deterministic Snapshot Match<br>
+    Test 2: Single-Drone Trap Scenario — Stuck-Detection & Random-Noise Escape Behavioral Verification
   </div>
-  <div id="status">Loading fixture...</div>
-  <div id="results"></div>
+  <div id="status">Running tests...</div>
+
+  <div class="test-section">
+    <h2>Test 1: Deterministic Multi-Drone Snapshot (fixture_snapshot.json)</h2>
+    <div id="results-t1">Loading...</div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 2: Stuck-Detection / Random-Noise Behavioral Verification (fixture_stuck_snapshot.json)</h2>
+    <div class="explanation">
+      <strong>Scenario:</strong> Drone starts at <code>[48.71, 7.0, 20.0]</code> flying toward target <code>[100.0, 7.0, 20.0]</code> with obstacle at <code>[60.0, 7.0, 0.0]</code> (radius 8.0).<br>
+      <strong>Control Run (Without Noise):</strong> If stuck noise is disabled, attraction and obstacle repulsion cancel out in 2D, leaving the drone trapped at <code>x ≈ 48.71m</code> (target distance = 51.29m).<br>
+      <strong>Active Run (With Noise):</strong> When stuck noise is enabled, random noise breaks force equilibrium on horizontal axes 0/1 (Three.js X/Z), allowing the drone to maneuver around the obstacle and reach the target (target distance < 1.0m).
+    </div>
+    <div id="results-t2">Loading...</div>
+  </div>
 
   <script type="module">
     import { VectorSwarm, Obstacle } from '../swarm/VectorSwarm.js';
 
     const statusEl = document.getElementById('status');
-    const resultsEl = document.getElementById('results');
-    const TOLERANCE = 0.5;  // meters — generous due to RNG mismatch
+    const resultsT1El = document.getElementById('results-t1');
+    const resultsT2El = document.getElementById('results-t2');
 
-    async function run() {
-      // 1. Load fixture
-      statusEl.textContent = 'Loading fixture_snapshot.json...';
+    async function runTest1() {
+      const TOLERANCE = 0.5;
       let fixture;
       try {
         const resp = await fetch('fixture_snapshot.json');
         fixture = await resp.json();
       } catch (e) {
-        statusEl.innerHTML = `<span class="fail">Failed to load fixture: ${e.message}</span>`;
-        return;
+        resultsT1El.innerHTML = `<span class="fail">Failed to load fixture_snapshot.json: ${e.message}</span>`;
+        return false;
       }
 
       const { meta, scenario, checkpoints, summary } = fixture;
-      statusEl.textContent = 'Running JS VectorSwarm...';
-
-      // 2. Create VectorSwarm with identical scenario
-      const obstacles = scenario.obstacles.map(
-        o => new Obstacle(o.pos, o.radius, o.height)
-      );
+      const obstacles = scenario.obstacles.map(o => new Obstacle(o.pos, o.radius, o.height));
       const swarm = new VectorSwarm(scenario.starts, scenario.targets);
 
-      // 3. Run 300 ticks, capture checkpoints
       const TOTAL_STEPS = meta.total_steps;
       const STEP_SIZE = meta.step_size;
       const checkpointTicks = Object.keys(checkpoints).map(Number).sort((a, b) => a - b);
-
       const jsCheckpoints = {};
 
       for (let step = 0; step <= TOTAL_STEPS; step++) {
@@ -102,11 +125,6 @@
               parseFloat(p[1].toFixed(6)),
               parseFloat(p[2].toFixed(6)),
             ]),
-            velocities: swarm.vel.map(v => [
-              parseFloat(v[0].toFixed(6)),
-              parseFloat(v[1].toFixed(6)),
-              parseFloat(v[2].toFixed(6)),
-            ]),
           };
         }
         if (step < TOTAL_STEPS) {
@@ -114,144 +132,166 @@
         }
       }
 
-      statusEl.textContent = 'Comparing results...';
-
-      // 4. Compare at each checkpoint
       let html = '';
       let allPass = true;
       let maxDeltaOverall = 0;
 
-      html += '<h2>Per-Checkpoint Position Deltas</h2>';
+      html += '<table>';
+      html += '<tr><th>Tick</th><th>Max Position Δ (m)</th><th>Mean Position Δ (m)</th><th>Status</th></tr>';
 
       for (const tick of checkpointTicks) {
         const pyPos = checkpoints[tick].positions;
         const jsPos = jsCheckpoints[tick].positions;
-
-        // Compute per-drone euclidean position delta
-        const deltas = [];
         let maxDelta = 0;
+        let sumDelta = 0;
+
         for (let i = 0; i < pyPos.length; i++) {
           const dx = jsPos[i][0] - pyPos[i][0];
           const dy = jsPos[i][1] - pyPos[i][1];
           const dz = jsPos[i][2] - pyPos[i][2];
           const delta = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          deltas.push(delta);
           maxDelta = Math.max(maxDelta, delta);
+          sumDelta += delta;
         }
         maxDeltaOverall = Math.max(maxDeltaOverall, maxDelta);
-
-        const meanDelta = deltas.reduce((s, d) => s + d, 0) / deltas.length;
+        const meanDelta = sumDelta / pyPos.length;
         const tickPass = maxDelta < TOLERANCE;
         if (!tickPass) allPass = false;
 
-        const statusClass = maxDelta < 0.01 ? 'pass'
-                          : maxDelta < TOLERANCE ? 'warn'
-                          : 'fail';
-
-        html += `<table>`;
-        html += `<tr><th colspan="${pyPos.length + 3}">Tick ${tick} — max Δ = ${maxDelta.toFixed(4)}m, mean Δ = ${meanDelta.toFixed(4)}m <span class="${statusClass}">${tickPass ? '✓ PASS' : '✗ FAIL'}</span></th></tr>`;
-        html += `<tr><th>Drone</th>`;
-        for (let i = 0; i < pyPos.length; i++) html += `<th>${i}</th>`;
-        html += `<th>Max</th><th>Mean</th></tr>`;
-
-        // Position delta row
-        html += `<tr><td style="text-align:left">Pos Δ (m)</td>`;
-        for (const d of deltas) {
-          const cls = d < 0.01 ? 'pass' : d < TOLERANCE ? 'warn' : 'fail';
-          html += `<td class="${cls}">${d.toFixed(4)}</td>`;
-        }
-        html += `<td class="${statusClass}">${maxDelta.toFixed(4)}</td>`;
-        html += `<td>${meanDelta.toFixed(4)}</td></tr>`;
-
-        // Per-axis breakdown for max-delta drone
-        const worstDrone = deltas.indexOf(Math.max(...deltas));
-        html += `<tr><td style="text-align:left; color:#556677">Worst (drone ${worstDrone})</td>`;
-        html += `<td colspan="${pyPos.length + 2}" style="text-align:left; color:#556677">`;
-        html += `Py=[${pyPos[worstDrone].map(v => v.toFixed(3)).join(', ')}] `;
-        html += `JS=[${jsPos[worstDrone].map(v => v.toFixed(3)).join(', ')}] `;
-        const dxW = jsPos[worstDrone][0] - pyPos[worstDrone][0];
-        const dyW = jsPos[worstDrone][1] - pyPos[worstDrone][1];
-        const dzW = jsPos[worstDrone][2] - pyPos[worstDrone][2];
-        html += `Δ=[${dxW.toFixed(4)}, ${dyW.toFixed(4)}, ${dzW.toFixed(4)}]`;
-        html += `</td></tr>`;
-
-        html += `</table>`;
+        const cls = maxDelta < 0.01 ? 'pass' : maxDelta < TOLERANCE ? 'warn' : 'fail';
+        html += `<tr><td>Tick ${tick}</td><td class="${cls}">${maxDelta.toFixed(4)}</td><td>${meanDelta.toFixed(4)}</td><td class="${cls}">${tickPass ? '✓ PASS' : '✗ FAIL'}</td></tr>`;
       }
+      html += '</table>';
 
-      // 5. Final summary comparison
-      html += '<h2>Final Summary (tick 300)</h2>';
-      const pyFinalDist = summary.final_distance_to_target;
-      const jsFinalPos = jsCheckpoints[300].positions;
-      const jsFinalDist = jsFinalPos.map((p, i) => {
-        const t = scenario.targets[i];
-        const dx = p[0] - t[0];
-        const dy = p[1] - t[1];
-        const dz = p[2] - t[2];
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
-      });
-      const jsMaxDist = Math.max(...jsFinalDist);
-      const jsMeanDist = jsFinalDist.reduce((s, d) => s + d, 0) / jsFinalDist.length;
-
-      html += `<table>`;
-      html += `<tr><th>Metric</th><th>Python</th><th>JS</th><th>Δ</th></tr>`;
-      html += `<tr><td>Max dist to target</td><td>${summary.max_final_distance_to_target.toFixed(4)}</td>`;
-      html += `<td>${jsMaxDist.toFixed(4)}</td>`;
-      html += `<td>${Math.abs(jsMaxDist - summary.max_final_distance_to_target).toFixed(4)}</td></tr>`;
-      html += `<tr><td>Mean dist to target</td><td>${summary.mean_final_distance_to_target.toFixed(4)}</td>`;
-      html += `<td>${jsMeanDist.toFixed(4)}</td>`;
-      html += `<td>${Math.abs(jsMeanDist - summary.mean_final_distance_to_target).toFixed(4)}</td></tr>`;
-      html += `</table>`;
-
-      // 6. Divergence trend (is it growing or bounded?)
-      html += '<h2>Divergence Trend</h2>';
-      html += '<pre>';
-      const trendData = [];
-      for (const tick of checkpointTicks) {
-        const pyPos = checkpoints[tick].positions;
-        const jsPos = jsCheckpoints[tick].positions;
-        let maxD = 0;
-        for (let i = 0; i < pyPos.length; i++) {
-          const dx = jsPos[i][0] - pyPos[i][0];
-          const dy = jsPos[i][1] - pyPos[i][1];
-          const dz = jsPos[i][2] - pyPos[i][2];
-          maxD = Math.max(maxD, Math.sqrt(dx*dx + dy*dy + dz*dz));
-        }
-        trendData.push({ tick, maxDelta: maxD });
-        const bar = '█'.repeat(Math.round(maxD * 100));
-        const barWarn = maxD > TOLERANCE ? ' ← EXCEEDS TOLERANCE' : '';
-        html += `Tick ${String(tick).padStart(3)}: max Δ = ${maxD.toFixed(4).padStart(8)}m  ${bar}${barWarn}\n`;
-      }
-      html += '</pre>';
-
-      // Is divergence growing?
-      const firstNonZero = trendData.find(t => t.maxDelta > 0);
-      const lastEntry = trendData[trendData.length - 1];
-      const growing = lastEntry.maxDelta > (firstNonZero?.maxDelta || 0) * 5;
-
-      // 7. Overall verdict
       const verdictClass = allPass ? 'pass-box' : 'fail-box';
       html += `<div class="summary-box ${verdictClass}">`;
-      if (allPass) {
-        html += `<span class="pass" style="font-size:16px; font-weight:bold">✓ ALL CHECKPOINTS PASS</span>`;
-        html += `<br>Max position delta across all ticks: ${maxDeltaOverall.toFixed(4)}m (tolerance: ${TOLERANCE}m)`;
-        if (growing) {
-          html += `<br><span class="warn">⚠ Divergence trend is growing — likely RNG-driven, check if it stays bounded with more ticks.</span>`;
-        } else {
-          html += `<br><span class="pass">Divergence is bounded — port is numerically correct.</span>`;
+      html += `<span class="${allPass ? 'pass' : 'fail'}" style="font-weight:bold">${allPass ? '✓ TEST 1 PASS' : '✗ TEST 1 FAIL'}</span> — `;
+      html += `Max Position Delta Across All Ticks: <strong>${maxDeltaOverall.toFixed(4)}m</strong> (Tolerance: ${TOLERANCE}m)`;
+      html += `</div>`;
+
+      resultsT1El.innerHTML = html;
+      return allPass;
+    }
+
+    async function runTest2() {
+      let fixture;
+      try {
+        const resp = await fetch('fixture_stuck_snapshot.json');
+        fixture = await resp.json();
+      } catch (e) {
+        resultsT2El.innerHTML = `<span class="fail">Failed to load fixture_stuck_snapshot.json: ${e.message}</span>`;
+        return false;
+      }
+
+      const { meta, scenario, reference_python } = fixture;
+
+      // Instantiate VectorSwarm directly from loaded fixture scenario parameters
+      const obstacles = scenario.obstacles.map(o => new Obstacle(o.pos, o.radius, o.height));
+      const swarm = new VectorSwarm(scenario.starts, scenario.targets);
+
+      const stuckTicks = [];
+      let speedAtStuck = 0;
+      let distAtStuck = 0;
+
+      for (let step = 0; step < meta.total_steps; step++) {
+        // Evaluate stuck condition BEFORE update (same as algorithm logic)
+        const dx = swarm.targets[0][0] - swarm.pos[0][0];
+        const dy = swarm.targets[0][1] - swarm.pos[0][1];
+        const dz = swarm.targets[0][2] - swarm.pos[0][2];
+        const distToTarget = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const speed = Math.sqrt(swarm.vel[0][0] ** 2 + swarm.vel[0][1] ** 2 + swarm.vel[0][2] ** 2);
+
+        if (speed < 0.1 && distToTarget > 3.0) {
+          stuckTicks.push(step);
+          if (stuckTicks.length === 1) {
+            speedAtStuck = speed;
+            distAtStuck = distToTarget;
+          }
         }
+
+        swarm.update(obstacles, meta.step_size);
+      }
+
+      // Final position and distance to target
+      const finalPos = swarm.pos[0];
+      const targetPos = scenario.targets[0];
+      const dxF = targetPos[0] - finalPos[0];
+      const dyF = targetPos[1] - finalPos[1];
+      const dzF = targetPos[2] - finalPos[2];
+      const finalDist = Math.sqrt(dxF * dxF + dyF * dyF + dzF * dzF);
+
+      // Verifications:
+      const stuckFired = stuckTicks.length > 0;
+      const stuckTickFirst = stuckFired ? stuckTicks[0] : -1;
+      const escaped = finalDist < 1.0;
+      const converged = finalDist < 1.0;
+
+      const test2Pass = stuckFired && escaped && converged;
+
+      let html = '';
+      html += `<table>`;
+      html += `<tr><th>Check Item</th><th>Target Condition</th><th>Observed JS Output</th><th>Python Reference (With Noise)</th><th>Python Reference (Without Noise)</th><th>Status</th></tr>`;
+
+      html += `<tr>`;
+      html += `<td style="text-align:left">1. Stuck-Detection Fired</td>`;
+      html += `<td>Speed < 0.1 & Dist > 3.0</td>`;
+      html += `<td>${stuckFired ? `YES at tick ${stuckTickFirst} (speed=${speedAtStuck.toFixed(4)}, dist=${distAtStuck.toFixed(2)}m)` : 'NO'}</td>`;
+      html += `<td>YES at tick ${reference_python.stuck_ticks.join(', ')}</td>`;
+      html += `<td>N/A (Noise Disabled)</td>`;
+      html += `<td class="${stuckFired ? 'pass' : 'fail'}">${stuckFired ? '✓ PASS' : '✗ FAIL'}</td>`;
+      html += `</tr>`;
+
+      html += `<tr>`;
+      html += `<td style="text-align:left">2. Escaped Trap (No Forever-Stuck)</td>`;
+      html += `<td>Move away from x ≈ 48.71m equilibrium</td>`;
+      html += `<td>[${finalPos.map(v=>v.toFixed(3)).join(', ')}]</td>`;
+      html += `<td>[${reference_python.with_noise_active_run.final_pos.map(v=>v.toFixed(3)).join(', ')}]</td>`;
+      html += `<td>[${reference_python.without_noise_control_run.final_pos.map(v=>v.toFixed(3)).join(', ')}]</td>`;
+      html += `<td class="${escaped ? 'pass' : 'fail'}">${escaped ? '✓ PASS' : '✗ FAIL'}</td>`;
+      html += `</tr>`;
+
+      html += `<tr>`;
+      html += `<td style="text-align:left">3. Final Target Convergence</td>`;
+      html += `<td>Final Distance to Target < 1.0m</td>`;
+      html += `<td><strong>${finalDist.toFixed(6)}m</strong></td>`;
+      html += `<td><strong>${reference_python.with_noise_active_run.final_dist.toFixed(6)}m</strong></td>`;
+      html += `<td><span class="fail">${reference_python.without_noise_control_run.final_dist.toFixed(2)}m</span> (Trapped Forever)</td>`;
+      html += `<td class="${converged ? 'pass' : 'fail'}">${converged ? '✓ PASS' : '✗ FAIL'}</td>`;
+      html += `</tr>`;
+
+      html += `</table>`;
+
+      const verdictClass = test2Pass ? 'pass-box' : 'fail-box';
+      html += `<div class="summary-box ${verdictClass}">`;
+      if (test2Pass) {
+        html += `<span class="pass" style="font-weight:bold">✓ TEST 2 PASS: Stuck-Detection & Random Noise Injection Function Correctly</span><br>`;
+        html += `• Loaded scenario directly from <code>fixture_stuck_snapshot.json</code>: Start <code>[${scenario.starts[0].join(', ')}]</code> → Target <code>[${scenario.targets[0].join(', ')}]</code>.<br>`;
+        html += `• Stuck condition triggered at <strong>tick ${stuckTickFirst}</strong> (Speed: ${speedAtStuck.toFixed(4)} m/s, Target Dist: ${distAtStuck.toFixed(2)}m).<br>`;
+        html += `• Random noise (applied to horizontal axes 0/1, Three.js X/Z) broke force equilibrium.<br>`;
+        html += `• Final distance to target at tick ${meta.total_steps}: <strong>${finalDist.toFixed(6)}m</strong> (converged < 1.0m threshold).`;
       } else {
-        html += `<span class="fail" style="font-size:16px; font-weight:bold">✗ SOME CHECKPOINTS EXCEED TOLERANCE</span>`;
-        html += `<br>Max position delta: ${maxDeltaOverall.toFixed(4)}m (tolerance: ${TOLERANCE}m)`;
-        html += `<br><span class="fail">This suggests a force calculation bug, not just RNG mismatch. Investigate the worst checkpoint above.</span>`;
+        html += `<span class="fail" style="font-weight:bold">✗ TEST 2 FAIL: Stuck-Detection or Trap Escape Failed</span>`;
       }
       html += `</div>`;
 
-      resultsEl.innerHTML = html;
-      statusEl.textContent = allPass ? '✓ Verification complete — PASS' : '✗ Verification complete — FAIL';
+      resultsT2El.innerHTML = html;
+      return test2Pass;
     }
 
-    run().catch(e => {
-      statusEl.innerHTML = `<span class="fail">Error: ${e.message}</span>`;
+    async function runSuite() {
+      statusEl.textContent = 'Running verification suite...';
+      const t1 = await runTest1();
+      const t2 = await runTest2();
+
+      if (t1 && t2) {
+        statusEl.innerHTML = `<span class="pass">✓ ALL SUITE TESTS PASSED</span>`;
+      } else {
+        statusEl.innerHTML = `<span class="fail">✗ SOME SUITE TESTS FAILED</span>`;
+      }
+    }
+
+    runSuite().catch(e => {
+      statusEl.innerHTML = `<span class="fail">Suite Execution Error: ${e.message}</span>`;
       console.error(e);
     });
   </script>

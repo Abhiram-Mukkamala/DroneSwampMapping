@@ -1,43 +1,91 @@
-# Swarm Robotics: Hybrid A* & Artificial Potential Fields (APF) Architecture
+# Swarm Robotics: 3D Physics Simulation & Perception Architecture
 
 ## Overview
-This repository contains a locally hosted, offline-capable 3D physics simulation for drone swarm kinematics. The system utilizes a **Hybrid AI Decision Engine** that bridges discrete grid-based global routing with continuous, real-time physics and vector math.
+This repository contains a full-stack, offline-capable 3D physics simulation and perception pipeline for drone swarm kinematics, real-time computer vision, and geo-spatial coordinate mapping. The system pairs a **Hybrid AI Decision Engine** (combining grid-based global routing with continuous Artificial Potential Fields micro-kinematics) with a **Three.js Web Visualizer** and a containerized **FastAPI YOLOv8 Perception Service**.
 
-Our architecture successfully solves the "Rubber Band" deadlock and Local Minima traps often found in swarm robotics by cleanly separating Macro-navigation from Micro-kinematics.
+---
 
-## Core Architecture
+## Architecture & System Components
 
-### 1. The Macro Brain (A* Global Planner)
-* **File:** `path_planning.py`
-* **Function:** Analyzes the global 2D grid and generates a safe, optimal list of rigid 3D waypoints. 
-* **Update:** We increased the obstacle `safety_margin` to force the global pathing to route completely outside of the APF forcefields, preventing algorithm crossfire.
+```
+droneswarm/
+├── web/                           # Client-side 3D Web Simulator
+│   ├── core/                      # Fixed-timestep physics loop & drone state contract
+│   ├── render/                    # Three.js 3 scene manager, drone meshes & POV camera
+│   ├── swarm/                     # VectorSwarm (APF) formation control engine
+│   ├── perception/                # Async web perception client & bounding-box overlay
+│   ├── ui/                        # Control panel & live HUD telemetry
+│   └── tests/                     # Automated fixture verification suite
+├── perception/                    # YOLOv8 Computer Vision Microservice
+│   ├── main.py                    # FastAPI server (/detect & /health endpoints)
+│   ├── Dockerfile                 # CPU-optimized PyTorch container environment
+│   └── yolov8n.pt                 # YOLOv8 nano model weights
+├── geo_engine.py                  # Mercator Web Projection (Pixel-to-GPS translator)
+├── perfect_swarm.py               # Vectorized APF physics engine (NumPy)
+├── master_sim.py                  # Python simulation & Matplotlib 3D visualizer
+└── docker-compose.yml             # Perception service container orchestration
+```
 
-### 2. The Orchestrator (Decision Engine)
-* **File:** `decision_engine.py`
-* **Function:** Acts as the bridge between the A* grid and the continuous physics engine.
-* **Update:** Stripped out legacy Reynolds Boids math (which violently conflicted with APF repulsion). Implemented **Pure Pursuit Lookahead Logic** (`curr_idx + 2`). Instead of panicking when a drone gets bumped off the exact grid path, the engine dynamically re-anchors the drone to the next upcoming waypoint, allowing for smooth, sweeping aerodynamic turns.
+### 1. Browser-Based 3D Simulator (`web/`)
+* **3D Renderer & Scene Manager (`web/render/`):** Built on Three.js, rendering multi-drone swarms, dynamic lighting, trajectory trails, and environmental obstacles.
+* **Per-Drone POV Feed (`web/render/DroneCamera.js`):** Generates dedicated 320x240 cockpit viewport camera streams attached directly to individual drones (75° FOV) with frame export (`getFrameBlob`).
+* **VectorSwarm APF Engine (`web/swarm/`, `web/core/`):** High-performance JavaScript port of the Artificial Potential Fields (APF) physics engine running fixed-timestep simulation loops.
+* **Interactive Control Panel (`web/ui/ControlPanel.js`):** Provides live drone count controls, pause/reset state management, drone POV dropdown selector, HUD statistics (FPS, physics ticks, average battery), and live perception overlay rendering.
 
-### 3. The Reflexes (APF Kinematics)
-* **File:** `perfect_swarm.py`
-* **Function:** Calculates real-time velocity, inertia smoothing, and surface-boundary repulsion. 
-* **Update:** Replaced hardcoded collision detection with a mathematically guaranteed 2.0m repulsion safety bubble. Injected **Stochastic Noise (Escape Vectors)** to automatically break drones out of zero-velocity Local Minima dead zones. 
+### 2. YOLOv8 Perception Microservice (`perception/`)
+* **FastAPI Object Detection Service (`perception/main.py`):** Real-time object detection backend powered by YOLOv8 (`yolov8n.pt`) exposing POST `/detect` (accepts JPEG frames and returns detected bounding boxes, class labels, and confidence metrics) and GET `/health`.
+* **Containerized Deployment (`docker-compose.yml`, `perception/Dockerfile`):** Lightweight CPU-optimized PyTorch environment configured with CORS support for browser access.
+* **Web Perception Integration (`web/perception/`):** Asynchronous client featuring auto-reconnecting health polling, frame rate throttling, non-blocking upload queues, and 2D bounding box overlay rendering on top of the live drone POV stream.
 
-### 4. Vision & Telemetry (The Network)
-* **Integration:** Converts live VisDrone ONNX bounding boxes into dynamic APF obstacles in real-time. The swarm uses a mock telemetry mesh to share target and obstacle coordinates, ensuring unified swarm intelligence without relying on external APIs.
+### 3. Core Physics & Geo-Spatial Engine
+* **Hybrid Decision Engine (`decision_engine.py`, `perfect_swarm.py`):** Bridges A* discrete global pathfinding with continuous APF micro-kinematics. Incorporates Pure Pursuit lookahead navigation (`curr_idx + 2`), 2.0m repulsion safety bubbles, and Stochastic Noise escape vectors to eliminate local minima traps.
+* **Mercator GeoTranslation Engine (`geo_engine.py`):** Converts 2D viewport pixel coordinates into real-world GPS Latitude and Longitude using Web Mercator projections scaled by Earth radius, latitude radians, zoom level, and viewport dimensions.
 
-## How to Run the Simulation
-Ensure all core files are in the same directory. To launch the Matplotlib 3D kinematic visualizer and test the Hybrid Engine:
+---
 
 ## Swarm Mission Protocols
-The orchestrator is equipped with mathematical formation logic, allowing the swarm to transition from point-to-point navigation into synchronized tactical behaviors:
 
-* **Protocol Beta (Search & Rescue):** Utilizes linear interpolation across a target axis. The swarm automatically untangles itself and forms a perfectly spaced horizontal sweep line to comb through environments.
-* **Protocol Gamma (Encirclement):** Utilizes trigonometric distribution (Sine/Cosine vectors). The swarm calculates a 360-degree cage around a central coordinate, dynamically routing around obstacles to lock into their specific formation slots.
+The orchestrator supports mathematical tactical formation protocols for multi-agent coordination:
 
-## Performance Optimization
-* **Vectorized Kinematics:** Upgraded the core APF engine from nested iterative loops to pure NumPy matrix operations. 
-* **Zero-Division Masking:** Implemented safe mathematical divisors to prevent `NaN` cascade failures during perfect-zero collision states.
-* **Result:** The simulation effortlessly handles 15+ independent agents in real-time with sub-15ms physics calculation latency.
+* **Protocol Beta (Search & Rescue):** Linear axis interpolation that untangles drone trajectories and forms a perfectly spaced horizontal sweep line to inspect targets.
+* **Protocol Gamma (Encirclement):** Trigonometric distribution (Sine/Cosine vectors) forming a 360° dynamic containment ring around target coordinates.
 
+---
+
+## Verification & Testing Suite
+
+* **Fixture Verification (`web/tests/test_swarm.html`):** Automated browser verification suite comparing JS algorithm outputs against Python reference snapshot fixtures (`fixture_snapshot.json`, `fixture_stuck_snapshot.json`).
+* **Perception API Harness (`tests/test_perception_endpoint.py`):** Endpoint integration test verifying backend responsiveness and response contracts.
+
+---
+
+## How to Run
+
+### 1. Web Simulator (Client-Side)
+Start a local web server serving the `web` directory:
+```bash
+# Option A: Python Built-in HTTP Server
+python -m http.server 3000 -d web
+
+# Option B: Node / npx serve
+cd web
+npx serve . -p 3000
+```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+### 2. Perception Service (YOLOv8 Backend)
+```bash
+# Option A: Docker Compose (Recommended)
+docker compose up
+
+# Option B: Direct Python
+cd perception
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+Check status: `curl http://localhost:8000/health`
+
+### 3. Python Master Simulation Engine
 ```bash
 python master_sim.py
+```

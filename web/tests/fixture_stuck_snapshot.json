@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "scenario_name": "Stuck Detection & Trap Escape",
+    "description": "Single-drone scenario placed at a force-equilibrium point directly behind an obstacle to trigger stuck-detection.",
+    "n_drones": 1,
+    "total_steps": 400,
+    "step_size": 0.18,
+    "coordinate_note": "axes 0,1 = horizontal plane (obstacle avoidance plane), axis 2 = up"
+  },
+  "scenario": {
+    "starts": [[48.71, 7.0, 20.0]],
+    "targets": [[100.0, 7.0, 20.0]],
+    "obstacles": [
+      {
+        "pos": [60.0, 7.0, 0.0],
+        "radius": 8.0,
+        "height": 30.0
+      }
+    ]
+  },
+  "reference_python": {
+    "stuck_ticks": [0],
+    "without_noise_control_run": {
+      "description": "Control run with stuck noise disabled: drone remains permanently trapped at force equilibrium",
+      "final_dist": 51.289096,
+      "final_pos": [48.710904, 7.0, 20.0],
+      "escaped": false
+    },
+    "with_noise_active_run": {
+      "description": "Active run with stuck noise enabled: random noise breaks equilibrium and drone escapes to target",
+      "final_dist": 0.000515,
+      "final_pos": [99.999515, 7.000173, 20.0],
+      "escaped": true
+    }
+  }
+}

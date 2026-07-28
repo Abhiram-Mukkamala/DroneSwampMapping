@@ -79,7 +79,39 @@
       </div>
     </div>
 
-    <div class="panel-footer">DroneSwarmMapping v1.0 — Phase 1</div>
+    <div class="panel-footer">DroneSwarmMapping v1.0 — Phase 3</div>
+  </div>
+
+  <!-- Drone POV Stream Panel (Top-Right) -->
+  <div class="pov-panel" id="pov-panel">
+    <div class="pov-header">
+      <div class="pov-title">
+        <span class="live-dot"></span>
+        Drone POV Feed
+      </div>
+      <div class="pov-controls">
+        <select id="pov-drone-select" class="pov-select">
+          <option value="0">Drone #0</option>
+        </select>
+        <button class="btn btn-sm" id="pov-toggle-btn">Hide</button>
+      </div>
+    </div>
+    <div class="pov-viewport" id="pov-viewport">
+      <canvas id="pov-canvas" width="320" height="240"></canvas>
+      <canvas id="pov-detection-overlay" width="320" height="240"></canvas>
+      <div class="pov-overlay-info">
+        <span id="pov-drone-id-label">Drone #0</span>
+        <span>75° FOV | 320x240</span>
+      </div>
+      <div class="perception-status" id="perception-status">
+        <span class="perception-dot disconnected" id="perception-dot"></span>
+        <span class="perception-label" id="perception-label">Disconnected</span>
+      </div>
+      <div class="detection-badge" id="detection-badge">
+        <span id="detection-count">0</span> detections
+        <span class="inference-time" id="inference-time"></span>
+      </div>
+    </div>
   </div>
 
 </body>

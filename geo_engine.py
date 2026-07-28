@@ -7,23 +7,31 @@ class GeoTranslationEngine:
     Translates local 2D pixel coordinates on a cached satellite map view
     back into real-world GPS Latitude and Longitude coordinates.
     """
-    def __init__(self, center_lat: float, center_lon: float, zoom: int, img_width: int = 600, img_height: int = 600) -> None:
+    def __init__(self, center_lat: float, center_lon: float, zoom: int,
+                 img_width: int = 600, img_height: int = 600) -> None:
+
         self.center_lat = center_lat
         self.center_lon = center_lon
         self.zoom = zoom
         self.img_width = img_width
         self.img_height = img_height
 
-    def pixel_to_gps(self, target_x: float, target_y: float) -> Tuple[float, float]:
+    def pixel_to_gps(self, target_x: float,
+                     target_y: float) -> Tuple[float, float]:
+
         """
-        Calculates the real-world Latitude and Longitude for a target coordinate (target_x, target_y).
+        Calculates the real-world Latitude and Longitude for
+        a target coordinate (target_x, target_y).
         """
         try:
             # Meters per pixel calculation based on Web Mercator projection
             lat_rad = math.radians(self.center_lat)
-            meters_per_pixel = (156543.03392 * math.cos(lat_rad)) / (2 ** self.zoom)
+            meters_per_pixel = (2 * math.pi * 6378111320 * math.cos(lat_rad))
+            meters_per_pixel /= self.img_width * (2 ** self.zoom)
 
-            # Pixel displacement from center (positive dx = east, positive dy = north)
+            # Pixel displacement from center
+            # (positive dx = east, positive dy = north)
+
             dx_pixels = target_x - (self.img_width / 2.0)
             dy_pixels = (self.img_height / 2.0) - target_y
 
@@ -34,7 +42,8 @@ class GeoTranslationEngine:
 
             # Convert displacements to degrees
             d_lat = (dy_meters / r_earth) * (180.0 / math.pi)
-            d_lon = (dx_meters / (r_earth * math.cos(lat_rad))) * (180.0 / math.pi)
+            d_lon = (dx_meters / (r_earth * math.cos(lat_rad)))
+            d_lon = d_lon * (180.0 / math.pi)
 
             target_lat = self.center_lat + d_lat
             target_lon = self.center_lon + d_lon
