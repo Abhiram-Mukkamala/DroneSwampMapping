@@ -24,26 +24,22 @@ class GeoTranslationEngine:
         a target coordinate (target_x, target_y).
         """
         try:
+            r_earth = 6378137.0
             # Meters per pixel calculation based on Web Mercator projection
             lat_rad = math.radians(self.center_lat)
-            meters_per_pixel = (2 * math.pi * 6378111320 * math.cos(lat_rad))
-            meters_per_pixel /= self.img_width * (2 ** self.zoom)
+            meters_per_pixel = (2 * math.pi * r_earth * math.cos(lat_rad)) / (self.img_width * (2 ** self.zoom))
 
             # Pixel displacement from center
             # (positive dx = east, positive dy = north)
-
             dx_pixels = target_x - (self.img_width / 2.0)
             dy_pixels = (self.img_height / 2.0) - target_y
 
             dx_meters = dx_pixels * meters_per_pixel
             dy_meters = dy_pixels * meters_per_pixel
 
-            r_earth = 6378137.0
-
             # Convert displacements to degrees
             d_lat = (dy_meters / r_earth) * (180.0 / math.pi)
-            d_lon = (dx_meters / (r_earth * math.cos(lat_rad)))
-            d_lon = d_lon * (180.0 / math.pi)
+            d_lon = (dx_meters / (r_earth * math.cos(lat_rad))) * (180.0 / math.pi)
 
             target_lat = self.center_lat + d_lat
             target_lon = self.center_lon + d_lon

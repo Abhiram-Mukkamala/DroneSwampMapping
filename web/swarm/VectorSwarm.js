@@ -202,3 +202,44 @@ export class VectorSwarm {
     this.history.push(pos.map(p => [...p]));
   }
 }
+
+/**
+ * Protocol Beta (Linear Sweep):
+ * Linear axis interpolation mapping nDrones into an evenly spaced horizontal line.
+ * @param {number} nDrones
+ * @param {number[]} startPoint - [x, y]
+ * @param {number[]} endPoint - [x, y]
+ * @param {number} [altitude=20.0]
+ * @returns {number[][]} array of [x, y, z] target positions
+ */
+export function generateProtocolBeta(nDrones, startPoint, endPoint, altitude = 20.0) {
+  const targets = [];
+  for (let i = 0; i < nDrones; i++) {
+    const t = nDrones > 1 ? i / (nDrones - 1) : 0;
+    const x = startPoint[0] + t * (endPoint[0] - startPoint[0]);
+    const y = startPoint[1] + t * (endPoint[1] - startPoint[1]);
+    targets.push([x, y, altitude]);
+  }
+  return targets;
+}
+
+/**
+ * Protocol Gamma (Dynamic Encirclement):
+ * Trigonometric distribution forming a 360° dynamic containment ring around target coordinates.
+ * @param {number} nDrones
+ * @param {number[]} center - [x, y]
+ * @param {number} [radius=15.0]
+ * @param {number} [altitude=20.0]
+ * @returns {number[][]} array of [x, y, z] target positions
+ */
+export function generateProtocolGamma(nDrones, center, radius = 15.0, altitude = 20.0) {
+  const targets = [];
+  for (let i = 0; i < nDrones; i++) {
+    const angle = (2 * Math.PI * i) / nDrones;
+    const x = center[0] + radius * Math.cos(angle);
+    const y = center[1] + radius * Math.sin(angle);
+    targets.push([x, y, altitude]);
+  }
+  return targets;
+}
+

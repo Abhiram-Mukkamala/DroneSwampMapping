@@ -9,8 +9,12 @@ are the horizontal plane (obstacle avoidance applies here), axis 2 is
     python y -> three.js z
     python z -> three.js y (altitude)
 """
+import os
+import sys
 import numpy as np
 import json
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from perfect_swarm import VectorSwarm, Obstacle
 
 np.random.seed(42)  # deterministic - required since update() uses randomness when stuck

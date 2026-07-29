@@ -1,5 +1,35 @@
 import numpy as np
 
+
+def generate_protocol_beta(n_drones: int, start_point: list, end_point: list, altitude: float = 20.0) -> np.ndarray:
+    """
+    Protocol Beta (Search & Rescue / Linear Sweep):
+    Linear axis interpolation forming an evenly spaced horizontal sweep line.
+    """
+    start_pt = np.array(start_point[:2], dtype=float)
+    end_pt = np.array(end_point[:2], dtype=float)
+    if n_drones == 1:
+        points = np.array([start_pt])
+    else:
+        t = np.linspace(0, 1, n_drones)[:, None]
+        points = start_pt + t * (end_pt - start_pt)
+    altitudes = np.full((n_drones, 1), altitude)
+    return np.hstack([points, altitudes])
+
+
+def generate_protocol_gamma(n_drones: int, center: list, radius: float = 15.0, altitude: float = 20.0) -> np.ndarray:
+    """
+    Protocol Gamma (Dynamic Encirclement):
+    Trigonometric distribution forming a 360° dynamic containment ring around target coordinates.
+    """
+    indices = np.arange(n_drones)
+    angles = 2 * np.pi * indices / n_drones
+    x = center[0] + radius * np.cos(angles)
+    y = center[1] + radius * np.sin(angles)
+    z = np.full(n_drones, altitude)
+    return np.column_stack([x, y, z])
+
+
 class Obstacle:
     def __init__(self, pos, radius, height=30.0, shape='box'):
         self.pos = np.array(pos, dtype=float)
