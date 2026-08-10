@@ -1,0 +1,89 @@
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--spacing-md);
+  height: 100%;
+}
+
+.topbar-left, .topbar-center, .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.accent {
+  color: var(--color-accent-blue);
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-family: var(--font-family-mono);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-panel-border);
+  padding: 2px 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background-color: var(--color-accent-green);
+  box-shadow: 0 0 5px var(--color-accent-green);
+}
+
+.status-dot.offline {
+  background-color: var(--color-accent-red);
+}
+
+.phase-indicator {
+  font-family: var(--font-family-mono);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.highlight {
+  color: var(--color-accent-blue);
+}
+
+.mission-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-family: var(--font-family-mono);
+  color: var(--color-accent-yellow);
+}
+
+.system-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-family: var(--font-family-mono);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  transition: color 0.2s;
+}
+
+.icon-btn:hover {
+  color: var(--color-accent-blue);
+}

@@ -1,0 +1,62 @@
+.simulation-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.reticle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--accent);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.reticle-tl { top: 1rem; left: 1rem; border-right: none; border-bottom: none; }
+.reticle-tr { top: 1rem; right: 1rem; border-left: none; border-bottom: none; }
+.reticle-bl { bottom: 1rem; left: 1rem; border-right: none; border-top: none; }
+.reticle-br { bottom: 1rem; right: 1rem; border-left: none; border-top: none; }
+
+.video-stream-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+}
+
+.mjpeg-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 5;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.status-overlay h2 {
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.status-overlay p {
+  font-size: 0.9rem;
+}

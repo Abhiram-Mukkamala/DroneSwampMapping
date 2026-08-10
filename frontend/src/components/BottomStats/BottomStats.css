@@ -1,0 +1,102 @@
+.bottom-stats {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── Scrollable drone list ─── */
+.stats-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+/* ─── Per-drone card ─── */
+.drone-telem-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--color-panel-border);
+  padding: 6px 8px;
+}
+
+.drone-telem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-panel-border);
+}
+
+.drone-telem-id {
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-accent-blue);
+  letter-spacing: 1px;
+}
+
+.drone-telem-status {
+  font-family: var(--font-family-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* ─── 2-column data grid inside card ─── */
+.drone-telem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 8px;
+}
+
+.telem-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.telem-cell--wide {
+  grid-column: 1 / -1;
+}
+
+.telem-label {
+  font-size: 0.62rem;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.8px;
+}
+
+.telem-value {
+  font-family: var(--font-family-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.telem-value small {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.telem-mono {
+  font-size: 0.78rem;
+}
+
+/* ─── Empty state ─── */
+.no-drones-msg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  opacity: 0.5;
+  letter-spacing: 1px;
+}

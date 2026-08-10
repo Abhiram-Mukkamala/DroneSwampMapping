@@ -1,0 +1,51 @@
+.mission-log {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.log-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.log-list {
+  list-style: none;
+  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.log-entry {
+  display: flex;
+  gap: var(--spacing-sm);
+  opacity: 0.9;
+}
+
+.log-time {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.log-msg {
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.log-entry.warn .log-msg {
+  color: var(--color-accent-yellow);
+}
+
+.log-entry.error .log-msg {
+  color: var(--color-accent-red);
+}
+
+.log-entry.info .log-msg {
+  color: var(--color-accent-blue);
+}

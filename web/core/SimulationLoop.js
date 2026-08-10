@@ -39,6 +39,8 @@ export class SimulationLoop {
     /** @type {Drone[]} */
     this.drones = [];
 
+    this._idCounter = 0; // Monotonically increasing ID for underlying physics drones
+
     /** Accumulated time not yet consumed by physics ticks (seconds). */
     this._accumulator = 0;
 
@@ -67,9 +69,8 @@ export class SimulationLoop {
    * @param {number} count
    */
   addDrones(count) {
-    const startId = this.drones.length;
     for (let i = 0; i < count; i++) {
-      const drone = new Drone(startId + i, {
+      const drone = new Drone(this._idCounter++, {
         position: {
           x: rand(SPAWN.minX, SPAWN.maxX),
           y: rand(SPAWN.minY, SPAWN.maxY),
@@ -127,6 +128,7 @@ export class SimulationLoop {
     this.drones = [];
     this._accumulator = 0;
     this.tickCount = 0;
+    this._idCounter = 0;
     this.addDrones(droneCount);
   }
 

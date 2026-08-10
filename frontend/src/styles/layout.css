@@ -1,0 +1,54 @@
+.dashboard-layout {
+  display: grid;
+  height: 100vh;
+  width: 100vw;
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr) var(--bottombar-height);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--rightpanel-width);
+  grid-template-areas:
+    "topbar topbar topbar"
+    "sidebar center right"
+    "bottom bottom bottom";
+  gap: 2px;
+  background-color: #000; /* Dark borders between panels */
+  overflow: hidden;
+}
+
+.topbar-area {
+  grid-area: topbar;
+  z-index: 10;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-area {
+  grid-area: sidebar;
+  z-index: 10;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.center-area {
+  grid-area: center;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.rightpanel-area {
+  grid-area: right;
+  z-index: 10;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bottombar-area {
+  grid-area: bottom;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 2fr 3fr 2fr;
+  gap: 2px;
+  min-height: 0;
+  max-height: var(--bottombar-height);
+  height: var(--bottombar-height);
+  overflow: hidden;
+}

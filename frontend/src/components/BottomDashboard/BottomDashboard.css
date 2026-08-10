@@ -1,0 +1,33 @@
+.bottom-dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-void);
+  overflow: hidden;
+}
+
+.bd-stats-row {
+  height: 90px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bd-bottom-row {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Resize handle between bottom panels */
+.bd-handle {
+  width: 4px;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background var(--t-fast);
+  flex-shrink: 0;
+}
+
+.bd-handle:hover,
+.bd-handle[data-resize-handle-state="drag"] {
+  background: var(--accent-blue);
+  box-shadow: var(--shadow-glow-blue);
+}

@@ -1,0 +1,204 @@
+/* ==============================
+   Drone Card — Individual unit display
+   ============================== */
+
+.drone-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--color-panel-border);
+  padding: var(--spacing-sm) var(--spacing-md);
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.drone-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-accent-blue);
+  transition: background 0.2s ease;
+}
+
+.drone-card:hover {
+  border-color: var(--color-accent-blue);
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.drone-card.dead {
+  opacity: 0.4;
+}
+
+.drone-card.dead::before {
+  background: var(--color-accent-red, #ef4444);
+}
+
+.drone-card.warning::before {
+  background: #f59e0b;
+}
+
+.drone-card.active::before {
+  background: #4ade80;
+}
+
+/* Header */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+  font-family: var(--font-family-mono);
+}
+
+.card-identity {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+}
+
+.drone-id {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-text-primary);
+  letter-spacing: 0.5px;
+}
+
+.drone-name {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.drone-status {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border: 1px solid var(--color-panel-border);
+  letter-spacing: 0.5px;
+  color: var(--color-accent-blue);
+}
+
+.drone-status.status-active {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.drone-status.status-warning {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.drone-status.status-dead {
+  color: var(--color-accent-red, #ef4444);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.drone-status.status-idle {
+  color: var(--color-text-secondary);
+  border-color: var(--color-panel-border);
+}
+
+/* Remove button */
+.remove-drone-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  opacity: 0;
+}
+
+.drone-card:hover .remove-drone-btn {
+  opacity: 1;
+}
+
+.remove-drone-btn:hover {
+  color: var(--color-accent-red, #ef4444);
+  border-color: var(--color-accent-red, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Body */
+.card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.card-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.card-stat .icon {
+  color: var(--color-accent-blue);
+  flex-shrink: 0;
+}
+
+.card-stat .icon.low {
+  color: #f59e0b;
+}
+
+/* Battery Bar */
+.battery-bar-container {
+  width: 48px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-panel-border);
+  overflow: hidden;
+}
+
+.battery-bar-fill {
+  height: 100%;
+  background: var(--color-accent-blue);
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+.battery-bar-fill.low {
+  background: #f59e0b;
+}
+
+.battery-bar-fill.dead {
+  background: var(--color-accent-red, #ef4444);
+  width: 0% !important;
+}
+
+.battery-text {
+  font-family: var(--font-family-mono);
+  font-size: 0.7rem;
+  min-width: 32px;
+  text-align: right;
+}
+
+.battery-text.low {
+  color: #f59e0b;
+}
+
+/* Task */
+.task-label {
+  color: var(--color-text-secondary);
+  font-size: 0.65rem;
+}
+
+.task-value {
+  font-family: var(--font-family-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-primary);
+}

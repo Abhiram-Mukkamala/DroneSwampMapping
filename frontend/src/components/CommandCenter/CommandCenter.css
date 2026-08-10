@@ -1,0 +1,58 @@
+.command-center {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-header.center {
+  text-align: center;
+}
+
+.cmd-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn-group {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.cmd-btn {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-text-primary);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  font-family: var(--font-family-mono);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.cmd-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cmd-btn.start:hover, .cmd-btn.start.active {
+  border-color: var(--color-accent-green);
+  color: var(--color-accent-green);
+}
+
+.cmd-btn.pause:hover, .cmd-btn.pause.active {
+  border-color: var(--color-accent-yellow);
+  color: var(--color-accent-yellow);
+}
+
+.cmd-btn.stop:hover, .cmd-btn.stop.active {
+  border-color: var(--color-accent-red);
+  color: var(--color-accent-red);
+}

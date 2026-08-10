@@ -1,0 +1,6 @@
+pybullet>=3.2.5
+numpy>=1.24
+opencv-python>=4.8
+# optional, only used if present (falls back to a built-in HSV color
+# detector automatically if this isn't installed):
+# ultralytics>=8.0

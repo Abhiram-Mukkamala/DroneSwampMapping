@@ -26,8 +26,7 @@ const cameraControls = new CameraControls(sceneManager.camera, canvas);
 const droneCamera = new DroneCamera(320, 240);
 
 const sim = new SimulationLoop();
-sim.reset(10);   // default: 10 drones
-sim.start();
+sim.reset(0);
 
 // ---- FPS tracking ----
 let frameCount = 0;
@@ -69,6 +68,62 @@ startPerceptionLoop(droneCamera, sceneManager.scene, () => {
   const states = sim.getDroneStates();
   const activeId = panel.selectedDroneId;
   return states.find(s => s.id === activeId) || states[0] || null;
+});
+
+// ---- PostMessage Communication Bridge ----
+function sendToDashboard(type, payload = {}) {
+  // If we are actually in an iframe, send up to parent
+  window.parent.postMessage({ type, payload, timestamp: Date.now() }, '*');
+}
+
+window.addEventListener('message', (event) => {
+  const { type, payload } = event.data;
+  if (!type) return;
+
+  switch (type) {
+    case 'INITIALIZE':
+      sim.reset(0); 
+      droneRenderer.clear();
+      sendToDashboard('SIM_READY');
+      break;
+
+    case 'START_SIMULATION':
+      sim.start();
+      break;
+
+    case 'PAUSE_SIMULATION':
+      sim.stop();
+      break;
+
+    case 'EMERGENCY_STOP':
+      sim.stop();
+      sim.reset(0);
+      droneRenderer.clear();
+      sendToDashboard('SIMULATION_RESET');
+      break;
+
+    case 'ADD_DRONES':
+      if (payload?.count) {
+        sim.addDrones(payload.count);
+        droneRenderer.clear(); // Ensure renderer picks up new count
+        sendToDashboard('DRONES_UPDATED', { count: sim.drones.length });
+      }
+      break;
+
+    case 'REMOVE_DRONE':
+      if (payload?.droneId !== undefined) {
+        sim.removeDrone(payload.droneId);
+        droneRenderer.clear();
+        sendToDashboard('DRONES_UPDATED', { count: sim.drones.length });
+      }
+      break;
+
+    case 'RESET_SIMULATION':
+      sim.reset(payload?.count || 0);
+      droneRenderer.clear();
+      sendToDashboard('SIMULATION_RESET');
+      break;
+  }
 });
 
 // ---- Main loop ----
@@ -130,6 +185,17 @@ function loop(now) {
     physicsTicks: sim.tickCount,
     droneCount: states.length,
     avgBattery: avgBat,
+  });
+
+  // Broadcast Telemetry
+  sendToDashboard('TELEMETRY_UPDATE', { 
+    fps: Math.round(currentFps), 
+    droneCount: states.length,
+    droneStates: states.map(droneState => ({
+      id: droneState.id, 
+      battery: droneState.battery,
+      status: droneState.status
+    })) 
   });
 }
 

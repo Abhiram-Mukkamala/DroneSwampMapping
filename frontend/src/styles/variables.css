@@ -1,0 +1,36 @@
+:root {
+  /* Colors - Dark Military Theme */
+  --color-bg-base: #0f172a; /* Slate 900 */
+  --color-panel-bg: rgba(30, 41, 59, 0.7); /* Slate 800 with opacity */
+  --color-panel-border: rgba(56, 189, 248, 0.2); /* Sky 400 with opacity */
+  --color-text-primary: #f8fafc; /* Slate 50 */
+  --color-text-secondary: #94a3b8; /* Slate 400 */
+  
+  /* Accents & Glows */
+  --color-accent-blue: #38bdf8; /* Sky 400 */
+  --color-accent-blue-glow: rgba(56, 189, 248, 0.5);
+  --color-accent-green: #4ade80; /* Green 400 */
+  --color-accent-red: #f87171; /* Red 400 */
+  --color-accent-yellow: #facc15; /* Yellow 400 */
+
+  /* Glassmorphism */
+  --glass-backdrop-filter: blur(12px);
+  --glass-box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+  /* Typography */
+  --font-family-base: 'Inter', sans-serif;
+  --font-family-mono: 'Roboto Mono', monospace;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Layout */
+  --topbar-height: 60px;
+  --bottombar-height: 250px;
+  --sidebar-width: 300px;
+  --rightpanel-width: 350px;
+}
