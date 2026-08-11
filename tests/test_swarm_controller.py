@@ -8,6 +8,7 @@ Verifies:
 """
 
 import sys
+import math
 import unittest
 from pathlib import Path
 import numpy as np
@@ -83,5 +84,4 @@ class TestSwarmController(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    import math
     unittest.main()
