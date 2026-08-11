@@ -31,6 +31,7 @@ class FollowerDrone:
         self.drone_id = drone_id
         self.offset_angle = offset_angle
         self.orbit_radius = orbit_radius
+        self.last_dist_to_target = 0.0
         self.ray_dirs = self._generate_26_spherical_rays()
 
         # Rigid body physical setup
@@ -73,6 +74,7 @@ class FollowerDrone:
 
         target_diff = desired_slot - current_pos
         dist_to_target = np.linalg.norm(target_diff)
+        self.last_dist_to_target = float(dist_to_target)
         attract_dir = target_diff / (dist_to_target + 1e-5)
         f_attract = attract_dir * min(dist_to_target * 8.0, 20.0)
 

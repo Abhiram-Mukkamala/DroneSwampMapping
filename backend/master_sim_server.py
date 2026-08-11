@@ -31,8 +31,16 @@ last_frame_time = 0.0
 frame_lock = threading.Lock()
 
 # Stuck detection: track per-drone low-velocity tick counts
+# NOTE: This concept mirrors (conceptually, not numerically) the stuck-detection logic in
+# perfect_swarm.py / VectorSwarm.js. In those engines, a drone is flagged stuck when
+# speed < threshold AND dist_to_target > threshold. Here, constants use PyBullet's real-world
+# metric scale (metres & m/s) rather than unscaled tuning steps, and incorporate a tick-based
+# debounce (_STUCK_TICK_THRESHOLD) to prevent single-frame velocity noise from flipping status.
 _stuck_tick_counts: dict[int, int] = {}
-_STUCK_VELOCITY_THRESHOLD = 0.15   # m/s — below this counts as "not moving"
+_STUCK_VELOCITY_THRESHOLD = 0.15   # m/s — below this counts as "low velocity / not moving"
+_STUCK_DISTANCE_THRESHOLD = 1.5    # metres — distance to target slot must exceed this.
+                                   # Followers hovering near their target slot in PyBullet metric
+                                   # scale stay within ~0.5m-1.0m, so >1.5m indicates trapped by an obstacle.
 _STUCK_TICK_THRESHOLD = 60         # ~1 second at 60Hz before marking STUCK
 
 from vision_engine import DroneVisionEngine
@@ -192,10 +200,12 @@ async def simulation_loop():
 
                 # Derive status from actual drone state
                 speed = math.hypot(lin_vel[0], lin_vel[1], lin_vel[2])
+                dist_to_target = getattr(f, 'last_dist_to_target', 0.0)
+
                 if not simulation_running:
                     status = "IDLE"
                     _stuck_tick_counts[i] = 0
-                elif speed < _STUCK_VELOCITY_THRESHOLD:
+                elif speed < _STUCK_VELOCITY_THRESHOLD and dist_to_target > _STUCK_DISTANCE_THRESHOLD:
                     _stuck_tick_counts[i] = _stuck_tick_counts.get(i, 0) + 1
                     status = "STUCK" if _stuck_tick_counts[i] >= _STUCK_TICK_THRESHOLD else "ACTIVE"
                 else:
