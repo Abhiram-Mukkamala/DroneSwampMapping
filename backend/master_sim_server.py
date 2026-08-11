@@ -16,6 +16,7 @@ except ImportError:
 
 from master_sim import FollowerDrone, create_drone
 import city_layout
+from schemas.drone_state import DroneState
 
 # Global state
 simulation_running = False
@@ -28,6 +29,11 @@ clients = set()
 latest_jpeg_frame = None
 last_frame_time = 0.0
 frame_lock = threading.Lock()
+
+# Stuck detection: track per-drone low-velocity tick counts
+_stuck_tick_counts: dict[int, int] = {}
+_STUCK_VELOCITY_THRESHOLD = 0.15   # m/s — below this counts as "not moving"
+_STUCK_TICK_THRESHOLD = 60         # ~1 second at 60Hz before marking STUCK
 
 from vision_engine import DroneVisionEngine
 vision_engine = DroneVisionEngine(img_width=640, img_height=480, fov=90.0)
@@ -181,19 +187,31 @@ async def simulation_loop():
             states = []
             for i, f in enumerate(followers):
                 pos = f.get_position()
-                heading = f.get_heading_angle()
+                heading_rad = f.get_heading_angle()
                 lin_vel, _ = p.getBaseVelocity(f.drone_id)
-                speed = math.hypot(lin_vel[0], lin_vel[1])
-                states.append({
-                    "id": i,
-                    "battery": 1.0,
-                    "status": "ACTIVE",
-                    "x": pos[0],
-                    "y": pos[1],
-                    "z": pos[2],
-                    "heading": math.degrees(heading),
-                    "speed": speed
-                })
+
+                # Derive status from actual drone state
+                speed = math.hypot(lin_vel[0], lin_vel[1], lin_vel[2])
+                if not simulation_running:
+                    status = "IDLE"
+                    _stuck_tick_counts[i] = 0
+                elif speed < _STUCK_VELOCITY_THRESHOLD:
+                    _stuck_tick_counts[i] = _stuck_tick_counts.get(i, 0) + 1
+                    status = "STUCK" if _stuck_tick_counts[i] >= _STUCK_TICK_THRESHOLD else "ACTIVE"
+                else:
+                    _stuck_tick_counts[i] = 0
+                    status = "ACTIVE"
+
+                drone_state = DroneState.from_pybullet(
+                    drone_index=i,
+                    position=(pos[0], pos[1], pos[2]),
+                    linear_velocity=(lin_vel[0], lin_vel[1], lin_vel[2]),
+                    heading_rad=heading_rad,
+                    battery=1.0,
+                    status=status,
+                )
+                states.append(drone_state.to_dict())
+
             payload = {
                 "type": "TELEMETRY_UPDATE",
                 "payload": {

@@ -47,25 +47,21 @@ export const DroneProvider = ({ children }) => {
     sendCommand('RESET_SIMULATION', {});
   }, [sendCommand]);
 
-  // Sync battery & status from telemetry updates
+  // Sync position, velocity, battery & status from telemetry updates
   useEffect(() => {
     return subscribeToMessages((message) => {
       if (message.type === 'TELEMETRY_UPDATE' && message.payload?.droneStates) {
         const simStates = message.payload.droneStates;
         setDrones(prev => prev.map(drone => {
-          const simState = simStates.find(s => s.id === drone.simIndex);
+          const simState = simStates.find(s => s.id === String(drone.simIndex));
           if (simState) {
             return {
               ...drone,
               battery: Math.round(simState.battery * 100),
-              status: simState.status === 'dead' ? 'DEAD' :
-                      simState.status === 'low_battery' ? 'WARNING' :
-                      simState.status === 'active' ? 'ACTIVE' : 'IDLE',
-              x: simState.x,
-              y: simState.y,
-              z: simState.z,
-              speed: simState.speed,
-              heading: simState.heading
+              status: simState.status,  // backend sends canonical: ACTIVE | IDLE | STUCK | OFFLINE
+              position: simState.position,   // { x, y, z }
+              velocity: simState.velocity,   // { x, y, z }
+              heading: simState.heading,
             };
           }
           return drone;

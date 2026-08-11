@@ -17,8 +17,9 @@ const CoverageMap = () => {
         <div className="mock-map">
           <div className="map-grid"></div>
           {drones.map(drone => {
-            const x = drone.x || 0;
-            const y = drone.y || 0;
+            const pos = drone.position || { x: 0, y: 0, z: 0 };
+            const x = pos.x;
+            const y = pos.y;
             
             // Map coordinates to percentage (0% to 100%)
             const left = Math.max(0, Math.min(100, ((x + mapBound) / (mapBound * 2)) * 100));
@@ -28,7 +29,7 @@ const CoverageMap = () => {
             return (
               <div 
                 key={drone.id} 
-                className={`drone-blip ${drone.status === 'DEAD' ? 'dead' : ''}`}
+                className={`drone-blip ${drone.status === 'OFFLINE' ? 'dead' : ''}`}
                 style={{ top: `${top}%`, left: `${left}%` }}
                 title={`ID: ${drone.id} | Pos: (${x.toFixed(1)}, ${y.toFixed(1)})`}
               />

@@ -6,10 +6,10 @@ const DroneCard = ({ drone, onRemove }) => {
   const statusClass = drone.status?.toLowerCase() || 'idle';
   const batteryLevel = drone.battery ?? 100;
   const isLow = batteryLevel < 20;
-  const isDead = drone.status === 'DEAD';
+  const isOffline = drone.status === 'OFFLINE';
 
   return (
-    <div className={`drone-card ${statusClass} ${isDead ? 'dead' : ''}`}>
+    <div className={`drone-card ${statusClass} ${isOffline ? 'dead' : ''}`}>
       <div className="card-header">
         <div className="card-identity">
           <span className="drone-id">{drone.id}</span>
@@ -29,7 +29,7 @@ const DroneCard = ({ drone, onRemove }) => {
           <Battery size={14} className={`icon ${isLow ? 'low' : ''}`} />
           <div className="battery-bar-container">
             <div
-              className={`battery-bar-fill ${isLow ? 'low' : ''} ${isDead ? 'dead' : ''}`}
+              className={`battery-bar-fill ${isLow ? 'low' : ''} ${isOffline ? 'dead' : ''}`}
               style={{ width: `${batteryLevel}%` }}
             />
           </div>
