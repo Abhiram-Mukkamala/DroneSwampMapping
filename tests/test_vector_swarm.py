@@ -76,6 +76,38 @@ class TestVectorSwarmDualMode(unittest.TestCase):
         # Drone 1 is far from its own target and stationary -> _stuck_ticks should increment (> 15 after 20 ticks)
         self.assertGreater(swarm._stuck_ticks[1], 15)
 
+    def test_dynamic_add_and_remove_drone(self):
+        """Confirm add_drone and remove_drone dynamically resize swarm arrays and shift indices cleanly."""
+        starts = np.zeros((0, 3), dtype=np.float32)
+        swarm = VectorSwarm(0, starts)
+        self.assertEqual(swarm.n, 0)
+
+        # Add 3 drones
+        idx0 = swarm.add_drone(np.array([10.0, 0.0, 5.0]))
+        idx1 = swarm.add_drone(np.array([20.0, 0.0, 5.0]))
+        idx2 = swarm.add_drone(np.array([30.0, 0.0, 5.0]))
+
+        self.assertEqual(idx0, 0)
+        self.assertEqual(idx1, 1)
+        self.assertEqual(idx2, 2)
+        self.assertEqual(swarm.n, 3)
+
+        np.testing.assert_allclose(swarm.positions[0], [10.0, 0.0, 5.0])
+        np.testing.assert_allclose(swarm.positions[1], [20.0, 0.0, 5.0])
+        np.testing.assert_allclose(swarm.positions[2], [30.0, 0.0, 5.0])
+
+        # Remove middle drone (index 1)
+        swarm.remove_drone(1)
+
+        self.assertEqual(swarm.n, 2)
+        self.assertEqual(swarm.positions.shape, (2, 3))
+        self.assertEqual(swarm.velocities.shape, (2, 3))
+        self.assertEqual(len(swarm._stuck_ticks), 2)
+
+        # Remaining two should be Drone 0 [10.0, 0.0, 5.0] at index 0, and Drone 2 [30.0, 0.0, 5.0] shifted to index 1
+        np.testing.assert_allclose(swarm.positions[0], [10.0, 0.0, 5.0])
+        np.testing.assert_allclose(swarm.positions[1], [30.0, 0.0, 5.0])
+
 
 if __name__ == "__main__":
     unittest.main()

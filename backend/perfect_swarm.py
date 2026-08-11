@@ -68,6 +68,50 @@ class VectorSwarm:
         self._stuck_ticks = np.zeros(num_drones, dtype=np.int32)
 
     # ------------------------------------------------------------------
+    # Dynamic Fleet Management
+    # ------------------------------------------------------------------
+    def add_drone(self, position: np.ndarray) -> int:
+        """
+        Dynamically append a new follower drone to the swarm.
+
+        Parameters
+        ----------
+        position : (3,) array -- initial 3D position of the new drone
+
+        Returns
+        -------
+        int : The index assigned to the newly added drone (self.n - 1).
+        """
+        pos_vec = np.asarray(position, dtype=np.float32).reshape(1, 3)
+        self.positions = np.vstack([self.positions, pos_vec])
+        self.velocities = np.vstack([self.velocities, np.zeros((1, 3), dtype=np.float32)])
+        self._stuck_ticks = np.append(self._stuck_ticks, 0)
+        self.n += 1
+        return self.n - 1
+
+    def remove_drone(self, index: int) -> None:
+        """
+        Dynamically remove a follower drone at the specified index.
+
+        Parameters
+        ----------
+        index : int -- the index of the drone to remove (0 <= index < self.n)
+
+        Notes
+        -----
+        Removing a drone shifts every subsequent drone's index down by one.
+        Callers maintaining their own ID-to-index mapping must re-index
+        remaining drones accordingly.
+        """
+        if not (0 <= index < self.n):
+            raise IndexError(f"Drone index {index} out of bounds for swarm of size {self.n}")
+
+        self.positions = np.delete(self.positions, index, axis=0)
+        self.velocities = np.delete(self.velocities, index, axis=0)
+        self._stuck_ticks = np.delete(self._stuck_ticks, index, axis=0)
+        self.n -= 1
+
+    # ------------------------------------------------------------------
     # Force components
     # ------------------------------------------------------------------
     def _attractive_force(self, target_pos: np.ndarray) -> np.ndarray:
