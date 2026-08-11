@@ -24,8 +24,7 @@ from vision_engine import DroneVisionEngine
 
 class FollowerDrone:
     """
-    Physical Rigid-Body Drone operating in high open airspace with 26-direction 
-    spherical raycast obstacle avoidance.
+    Physical Rigid-Body Drone operating in high open airspace.
     """
     def __init__(self, drone_id: int, start_pos: list[float], offset_angle: float, orbit_radius: float = 5.0):
         self.drone_id = drone_id
@@ -34,7 +33,10 @@ class FollowerDrone:
         self.last_dist_to_target = 0.0
         self.ray_dirs = self._generate_26_spherical_rays()
 
-        # Rigid body physical setup
+        # NOTE: Rigid body collision shapes are kept for PyBullet raycasting/AABB queries,
+        # but dynamics settings (mass, friction, damping) no longer drive motion directly.
+        # Motion is authoritatively computed by VectorSwarm and applied kinematically
+        # via resetBasePositionAndOrientation and resetBaseVelocity each tick.
         p.changeDynamics(
             self.drone_id, -1,
             mass=0.8,              # Dynamic rigid body
@@ -57,67 +59,11 @@ class FollowerDrone:
         return dirs
 
     def update_pathfinding(self, target_pos: np.ndarray, sim_time: float, dt: float, all_follower_positions: list[np.ndarray]):
-        # Current true physical state from engine
-        pos_tuple, _ = p.getBasePositionAndOrientation(self.drone_id)
-        current_pos = np.array(pos_tuple, dtype=np.float64)
-
-        lin_vel, _ = p.getBaseVelocity(self.drone_id)
-        current_vel = np.array(lin_vel, dtype=np.float64)
-
-        # 1. Target Orbit Formation Slot
-        angle = self.offset_angle + sim_time * 0.35
-        desired_slot = np.array([
-            target_pos[0] + self.orbit_radius * math.cos(angle),
-            target_pos[1] + self.orbit_radius * math.sin(angle),
-            target_pos[2] + 0.5 * math.sin(sim_time + self.offset_angle),
-        ])
-
-        target_diff = desired_slot - current_pos
-        dist_to_target = np.linalg.norm(target_diff)
-        self.last_dist_to_target = float(dist_to_target)
-        attract_dir = target_diff / (dist_to_target + 1e-5)
-        f_attract = attract_dir * min(dist_to_target * 8.0, 20.0)
-
-        # 2. 26-Ray 3D Obstacle Avoidance
-        sensor_dist = 8.0
-        ray_starts = [current_pos.tolist()] * len(self.ray_dirs)
-        ray_ends = [(current_pos + r * sensor_dist).tolist() for r in self.ray_dirs]
-
-        ray_results = p.rayTestBatch(ray_starts, ray_ends)
-        f_obstacle = np.zeros(3, dtype=np.float64)
-
-        for i, result in enumerate(ray_results):
-            hit_uid = result[0]
-            hit_fraction = result[2]
-            hit_normal = np.array(result[4], dtype=np.float64)
-
-            if hit_uid >= 0 and hit_uid != self.drone_id:
-                hit_dist = hit_fraction * sensor_dist
-                if 0.01 < hit_dist < sensor_dist:
-                    repulsion_mag = 70.0 * ((1.0 / hit_dist) - (1.0 / sensor_dist)) ** 2
-                    repulse_dir = hit_normal if np.linalg.norm(hit_normal) > 0.1 else -self.ray_dirs[i]
-                    repulse_dir = repulse_dir / (np.linalg.norm(repulse_dir) + 1e-5)
-                    f_obstacle += repulse_dir * repulsion_mag
-
-        # 3. Swarm Anti-Collision Force
-        f_swarm = np.zeros(3, dtype=np.float64)
-        for other_pos in all_follower_positions:
-            diff = current_pos - other_pos
-            d = np.linalg.norm(diff)
-            if 0.01 < d < 2.8:
-                f_swarm += (diff / d) * (2.8 - d) * 16.0
-
-        # 4. Integrate Forces and apply velocity
-        kd = 2.8
-        total_force = f_attract + f_obstacle + f_swarm - kd * current_vel
-        new_vel = current_vel + total_force * dt
-
-        max_speed = 8.0
-        speed = np.linalg.norm(new_vel)
-        if speed > max_speed:
-            new_vel = (new_vel / speed) * max_speed
-
-        p.resetBaseVelocity(self.drone_id, linearVelocity=new_vel.tolist(), angularVelocity=[0, 0, 0])
+        """
+        Legacy inline pathfinding stub. Swarm physics is now authoritatively
+        stepped via SwarmController / VectorSwarm.
+        """
+        pass
 
     def get_position(self) -> np.ndarray:
         pos_tuple, _ = p.getBasePositionAndOrientation(self.drone_id)
@@ -142,14 +88,21 @@ def create_drone(position: list[float], color: list[float], radius: float = 0.45
 
 
 def main():
+    from swarm_controller import SwarmController
+    import obstacle_map
+
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.setGravity(0, 0, -9.81)
 
     p.loadURDF("plane.urdf")
 
-    # Generate 3D City Layout
-    city_layout.build_city()
+    # Generate 3D City Layout and extract obstacle bounding boxes
+    city_body_ids = city_layout.build_city()
+    obstacle_boxes = obstacle_map.build_obstacle_aabbs(city_body_ids)
+
+    # Initialize SwarmController with obstacle AABBs
+    controller = SwarmController(obstacle_boxes)
 
     # HIGH SKY SPAWN (Z = 35.0m) to clear all building rooftops
     HIGH_ALTITUDE = 35.0
@@ -161,7 +114,6 @@ def main():
 
     # 2. Spawn Blue Swarm Drones orbiting at high altitude
     num_followers = 6
-    followers = []
     orbit_radius = 5.0
 
     for k in range(num_followers):
@@ -172,7 +124,8 @@ def main():
             HIGH_ALTITUDE
         ]
         b_id = create_drone(start_p, color=[0.1, 0.4, 0.9, 1.0], radius=0.4, mass=0.8)
-        followers.append(FollowerDrone(b_id, start_p, angle, orbit_radius=orbit_radius))
+        follower = FollowerDrone(b_id, start_p, angle, orbit_radius=orbit_radius)
+        controller.add_follower(follower, start_p)
 
     # Onboard Vision Camera for Lead Blue Drone
     blue_vision_engine = DroneVisionEngine(img_width=320, img_height=240, fov=75.0)
@@ -196,12 +149,10 @@ def main():
             # 1. Mouse Tracking for Yaw Turning
             mouse_events = p.getMouseEvents()
             for e in mouse_events:
-                # e[0] == 1 indicates a MOUSE_MOVE_EVENT
                 if e[0] == 1:
                     curr_x = e[1]
                     if last_mouse_x is not None:
                         dx = curr_x - last_mouse_x
-                        # Mouse drag/move turns yaw heading
                         red_yaw -= dx * 0.003
                     last_mouse_x = curr_x
 
@@ -214,7 +165,6 @@ def main():
             KEY_SPACE = ord(' ')
             KEY_LSHIFT = getattr(p, 'B3G_SHIFT', 65306)
 
-            # Forward / Backward along current Yaw vector
             if KEY_W in keys and keys[KEY_W] & p.KEY_IS_DOWN:
                 red_pos[0] += move_speed * math.cos(red_yaw)
                 red_pos[1] += move_speed * math.sin(red_yaw)
@@ -222,7 +172,6 @@ def main():
                 red_pos[0] -= move_speed * math.cos(red_yaw)
                 red_pos[1] -= move_speed * math.sin(red_yaw)
 
-            # Strafe Left / Right perpendicular to Yaw vector
             if KEY_A in keys and keys[KEY_A] & p.KEY_IS_DOWN:
                 red_pos[0] -= move_speed * math.sin(red_yaw)
                 red_pos[1] += move_speed * math.cos(red_yaw)
@@ -230,7 +179,6 @@ def main():
                 red_pos[0] += move_speed * math.sin(red_yaw)
                 red_pos[1] -= move_speed * math.cos(red_yaw)
 
-            # Ascend / Descend
             if KEY_SPACE in keys and keys[KEY_SPACE] & p.KEY_IS_DOWN:
                 red_pos[2] += move_speed * 0.5
             if KEY_LSHIFT in keys and keys[KEY_LSHIFT] & p.KEY_IS_DOWN:
@@ -247,14 +195,12 @@ def main():
                 cameraTargetPosition=red_pos.tolist(),
             )
 
-            # 4. Pathfinding Step for Swarm
-            all_follower_positions = [f.get_position() for f in followers]
-            for follower in followers:
-                follower.update_pathfinding(red_pos, sim_time, dt, all_follower_positions)
+            # 4. Pathfinding Step for Swarm via SwarmController & VectorSwarm
+            controller.step(red_pos, sim_time, dt)
 
             # 5. Onboard Camera Feed rendering from Lead Blue Drone
-            if tick_count % 3 == 0:
-                lead_blue = followers[0]
+            if tick_count % 3 == 0 and len(controller.followers) > 0:
+                lead_blue = controller.followers[0]
                 blue_vision_engine.update_camera_view(
                     drone_pos=lead_blue.get_position(),
                     heading_angle=lead_blue.get_heading_angle()

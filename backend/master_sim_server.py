@@ -16,11 +16,13 @@ except ImportError:
 
 from master_sim import FollowerDrone, create_drone
 import city_layout
+import obstacle_map
 from schemas.drone_state import DroneState
+from swarm_controller import SwarmController
 
 # Global state
 simulation_running = False
-followers = []
+swarm_controller = SwarmController()
 red_pos = np.array([0.0, 0.0, 35.0], dtype=np.float64)
 red_yaw = 0.0
 red_drone_id = None
@@ -88,7 +90,7 @@ def start_mjpeg_server():
 # ── WebSocket handler ──
 
 async def handler(websocket):
-    global simulation_running, followers, red_pos, red_yaw, red_drone_id
+    global simulation_running, red_pos, red_yaw, red_drone_id, swarm_controller
     clients.add(websocket)
     try:
         async for message in websocket:
@@ -111,17 +113,18 @@ async def handler(websocket):
                         35.0
                     ]
                     b_id = create_drone(start_p, color=[0.1, 0.4, 0.9, 1.0], radius=0.4, mass=0.8)
-                    followers.append(FollowerDrone(b_id, start_p, angle, orbit_radius=orbit_radius))
+                    f = FollowerDrone(b_id, start_p, angle, orbit_radius=orbit_radius)
+                    swarm_controller.add_follower(f, start_p)
             elif msg_type == "REMOVE_DRONE":
                 drone_index = payload.get("droneId")
-                if drone_index is not None and 0 <= drone_index < len(followers):
-                    removed = followers.pop(drone_index)
+                if drone_index is not None and 0 <= drone_index < len(swarm_controller.followers):
+                    removed = swarm_controller.remove_follower(drone_index)
                     p.removeBody(removed.drone_id)
-                    print(f"Removed drone at sim index {drone_index}, {len(followers)} remaining")
+                    print(f"Removed drone at sim index {drone_index}, {len(swarm_controller.followers)} remaining")
             elif msg_type == "RESET_SIMULATION":
-                for f in followers:
+                removed_list = swarm_controller.clear()
+                for f in removed_list:
                     p.removeBody(f.drone_id)
-                followers.clear()
                 print("Simulation reset: all follower drones removed")
     finally:
         clients.remove(websocket)
@@ -130,14 +133,17 @@ async def handler(websocket):
 # ── Main simulation loop ──
 
 async def simulation_loop():
-    global simulation_running, followers, red_pos, red_yaw, red_drone_id
+    global simulation_running, red_pos, red_yaw, red_drone_id, swarm_controller
     global tick_count, latest_jpeg_frame, last_frame_time
 
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.setGravity(0, 0, -9.81)
     p.loadURDF("plane.urdf")
-    city_layout.build_city()
+
+    city_body_ids = city_layout.build_city()
+    obstacle_boxes = obstacle_map.build_obstacle_aabbs(city_body_ids)
+    swarm_controller.set_obstacle_boxes(obstacle_boxes)
 
     red_drone_id = create_drone(red_pos.tolist(), color=[0.9, 0.1, 0.1, 1.0], radius=0.5, mass=0.0)
 
@@ -184,16 +190,15 @@ async def simulation_loop():
             p.resetBasePositionAndOrientation(red_drone_id, red_pos.tolist(), p.getQuaternionFromEuler([0, 0, red_yaw]))
             p.resetDebugVisualizerCamera(14.0, math.degrees(red_yaw) - 90.0, -25.0, red_pos.tolist())
 
-            all_follower_positions = [f.get_position() for f in followers]
-            for follower in followers:
-                follower.update_pathfinding(red_pos, sim_time, dt, all_follower_positions)
+            swarm_controller.step(red_pos, sim_time, dt)
 
             p.stepSimulation()
 
         # Broadcast telemetry (always, even when paused)
         if clients:
             states = []
-            for i, f in enumerate(followers):
+            followers_list = swarm_controller.followers
+            for i, f in enumerate(followers_list):
                 pos = f.get_position()
                 heading_rad = f.get_heading_angle()
                 lin_vel, _ = p.getBaseVelocity(f.drone_id)
@@ -227,7 +232,7 @@ async def simulation_loop():
                 "payload": {
                     "droneStates": states,
                     "fps": 60,
-                    "droneCount": len(followers)
+                    "droneCount": len(followers_list)
                 }
             }
             msg = json.dumps(payload)
@@ -237,8 +242,9 @@ async def simulation_loop():
         current_time = time.time()
         if current_time - last_frame_time > 0.041:
             last_frame_time = current_time
-            cam_pos = followers[0].get_position() if followers else red_pos.tolist()
-            cam_yaw = followers[0].get_heading_angle() if followers else red_yaw
+            followers_list = swarm_controller.followers
+            cam_pos = followers_list[0].get_position() if followers_list else red_pos.tolist()
+            cam_yaw = followers_list[0].get_heading_angle() if followers_list else red_yaw
 
             try:
                 w, h, rgba, dep, seg = vision_engine.update_camera_view(
