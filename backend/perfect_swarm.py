@@ -72,8 +72,15 @@ class VectorSwarm:
     # ------------------------------------------------------------------
     def _attractive_force(self, target_pos: np.ndarray) -> np.ndarray:
         """Linear-spring pull toward the target, capped so it never
-        overwhelms repulsion at close range (avoids overshoot/oscillation)."""
-        delta = target_pos[None, :] - self.positions          # (D, 3)
+        overwhelms repulsion at close range (avoids overshoot/oscillation).
+
+        Accepts either a single (3,) broadcast target or a (D, 3) per-drone target array.
+        """
+        if target_pos.ndim == 1:
+            delta = target_pos[None, :] - self.positions          # (D, 3)
+        else:
+            delta = target_pos - self.positions                   # (D, 3)
+
         dist = np.linalg.norm(delta, axis=1, keepdims=True)
         dist_safe = np.maximum(dist, 1e-3)
         direction = delta / dist_safe
@@ -132,7 +139,11 @@ class VectorSwarm:
 
         Parameters
         ----------
-        target_pos : (3,) array -- world position of the red target drone
+        target_pos : (3,) or (D, 3) array
+            Target position(s). If a single (3,) array is passed, it is
+            broadcast as a shared target for all D drones (leader-follow).
+            If a (D, 3) array is passed, target_pos[i] specifies the
+            individual target for drone i.
         obstacle_boxes : (N, 6) array from obstacle_map.build_obstacle_aabbs
         dt : timestep in seconds
 
@@ -170,7 +181,8 @@ class VectorSwarm:
 
         # update stuck-tick counters for the noise escape mechanism
         moved = np.linalg.norm(self.velocities, axis=1) * dt
-        near_target = np.linalg.norm(target_pos[None, :] - self.positions, axis=1) > 1.0
+        target_diff = (target_pos[None, :] - self.positions) if target_pos.ndim == 1 else (target_pos - self.positions)
+        near_target = np.linalg.norm(target_diff, axis=1) > 1.0
         self._stuck_ticks = np.where(
             (moved < 0.002) & near_target, self._stuck_ticks + 1, 0
         )
