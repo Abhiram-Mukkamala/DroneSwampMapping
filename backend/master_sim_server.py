@@ -121,6 +121,14 @@ async def handler(websocket):
                     removed = swarm_controller.remove_follower(drone_index)
                     p.removeBody(removed.drone_id)
                     print(f"Removed drone at sim index {drone_index}, {len(swarm_controller.followers)} remaining")
+            elif msg_type == "SET_FORMATION":
+                mode = payload.get("mode", "orbit")
+                params = {k: v for k, v in payload.items() if k != "mode"}
+                try:
+                    swarm_controller.set_formation(mode, **params)
+                    print(f"Formation set to {mode!r} with params {params}")
+                except ValueError as e:
+                    print(f"SET_FORMATION error: {e}")
             elif msg_type == "RESET_SIMULATION":
                 removed_list = swarm_controller.clear()
                 for f in removed_list:
