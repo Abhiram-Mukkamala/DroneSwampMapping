@@ -144,7 +144,10 @@ async def simulation_loop():
     global simulation_running, red_pos, red_yaw, red_drone_id, swarm_controller
     global tick_count, latest_jpeg_frame, last_frame_time
 
-    p.connect(p.GUI)
+    try:
+        p.connect(p.GUI)
+    except Exception:
+        p.connect(p.DIRECT)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.setGravity(0, 0, -9.81)
     p.loadURDF("plane.urdf")
