@@ -10,7 +10,8 @@ import { SimulationLoop } from './core/index.js';
 import { SceneManager, DroneRenderer, CameraControls, DroneCamera } from './render/index.js';
 import { ControlPanel } from './ui/ControlPanel.js';
 import { getTerrainData, getObstacles, setTerrainSeed } from './data/index.js';
-import { SCENARIOS } from './data/scenarios.js';
+import { SCENARIOS, getScenario } from './data/scenarios.js';
+import { generateProtocolBeta, generateProtocolGamma } from './swarm/VectorSwarm.js';
 import {
   startPerceptionLoop,
   stopPerceptionLoop,
@@ -37,11 +38,42 @@ const droneRenderer = new DroneRenderer(sceneManager.scene);
 const cameraControls = new CameraControls(sceneManager.camera, canvas);
 const droneCamera = new DroneCamera(320, 240);
 
-// Initialize terrain visuals for active scenario
-refreshTerrain(activeScenario);
-
 const sim = new SimulationLoop();
-sim.reset(0);
+
+function applyScenario(scenario = activeScenario) {
+  activeScenario = scenario;
+  const count = scenario.droneCount;
+
+  // Derive starts & targets for browser preview (using VectorSwarm.js generators for Beta/Gamma scenarios)
+  const starts = scenario.getStarts(count);
+  let targets;
+
+  if (scenario.id === 'search_rescue') {
+    // Protocol Beta (Linear sweep formation)
+    const betaTargets = generateProtocolBeta(count, [440, 60], [440, 440], 20.0);
+    targets = betaTargets.map(pt => ({ x: pt[0], y: pt[2], z: pt[1] }));
+  } else if (scenario.id === 'steep_terrain') {
+    // Protocol Gamma (Dynamic encirclement ring)
+    const gammaTargets = generateProtocolGamma(count, [350, 350], 65.0, 25.0);
+    targets = gammaTargets.map(pt => ({ x: pt[0], y: pt[2], z: pt[1] }));
+  } else {
+    targets = scenario.getTargets(count);
+  }
+
+  // Reset simulation core with count and start positions
+  sim.reset(count, starts);
+  droneRenderer.clear();
+
+  // Sync UI slider & drone selector
+  const slider = document.getElementById('drone-slider');
+  const countLabel = document.getElementById('drone-count');
+  if (slider) slider.value = count;
+  if (countLabel) countLabel.textContent = count;
+  panel.updateDroneSelect(count);
+
+  // Regenerate terrain visualizer with scenario seed & heightScale
+  refreshTerrain(scenario);
+}
 
 // ---- FPS tracking ----
 let frameCount = 0;
@@ -50,8 +82,14 @@ let currentFps = 60;
 
 // ---- Control Panel ----
 const panel = new ControlPanel({
+  onScenarioChange(scenarioId) {
+    const scenario = getScenario(scenarioId);
+    applyScenario(scenario);
+    sim.start();
+  },
   onDroneCountChange(count) {
-    sim.reset(count);
+    const starts = activeScenario.getStarts(count);
+    sim.reset(count, starts);
     droneRenderer.clear();
     panel.updateDroneSelect(count);
   },
@@ -64,7 +102,8 @@ const panel = new ControlPanel({
   },
   onReset() {
     const count = parseInt(document.getElementById('drone-slider').value, 10);
-    sim.reset(count);
+    const starts = activeScenario.getStarts(count);
+    sim.reset(count, starts);
     droneRenderer.clear();
     refreshTerrain(activeScenario);
     panel.updateDroneSelect(count);
@@ -77,6 +116,9 @@ const panel = new ControlPanel({
     // POV visibility toggle handler
   },
 });
+
+// Initialize simulation & terrain for active scenario
+applyScenario(activeScenario);
 
 // ---- Start Perception Pipeline ----
 // Provides the active drone state getter for frame capture timing
@@ -98,8 +140,7 @@ window.addEventListener('message', (event) => {
 
   switch (type) {
     case 'INITIALIZE':
-      sim.reset(0); 
-      droneRenderer.clear();
+      applyScenario(activeScenario); 
       sendToDashboard('SIM_READY');
       break;
 
@@ -113,8 +154,7 @@ window.addEventListener('message', (event) => {
 
     case 'EMERGENCY_STOP':
       sim.stop();
-      sim.reset(0);
-      droneRenderer.clear();
+      applyScenario(activeScenario);
       sendToDashboard('SIMULATION_RESET');
       break;
 
@@ -135,9 +175,7 @@ window.addEventListener('message', (event) => {
       break;
 
     case 'RESET_SIMULATION':
-      sim.reset(payload?.count || 0);
-      droneRenderer.clear();
-      refreshTerrain(activeScenario);
+      applyScenario(activeScenario);
       sendToDashboard('SIMULATION_RESET');
       break;
   }
