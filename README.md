@@ -255,6 +255,56 @@ stuck-detection with escape-noise recovery.
 - **3D formation view in the React dashboard** — currently only available in the browser preview and the PyBullet GUI
 
 ---
+## 🏗️ Architecture (WIP Showcase)
+
+> ⚠️ This diagram shows the current system architecture as of `main`. Some connections (e.g. backend → perception service) are shown as planned/optional and may not be fully wired yet — see file-level notes below the diagram.
+
+```mermaid
+flowchart LR
+    User([Pilot / Operator]) -->|WASD + Mouse| MasterSim[master_sim.py<br/>FPS Leader Controller]
+
+    subgraph Backend [Backend — PyBullet Physics Server]
+        direction TB
+        MasterSim --> PyBullet[(PyBullet Engine<br/>60Hz Physics Loop)]
+        CityLayout[city_layout.py<br/>Procedural 3D City] --> PyBullet
+        ObstacleMap[obstacle_map.py<br/>AABB Collision Boxes] --> SwarmCtrl
+        PyBullet <-->|Body Transforms| SwarmCtrl{swarm_controller.py<br/>SwarmController Bridge}
+        SwarmCtrl <-->|Formation Targets| APF[perfect_swarm.py<br/>VectorSwarm APF Engine<br/>Protocol Beta / Gamma]
+        PyBullet --> VisionEngine[vision_engine.py<br/>RGB / Depth / Segmentation]
+        Server[master_sim_server.py<br/>60Hz Daemon]
+        SwarmCtrl --> Server
+        VisionEngine --> Server
+    end
+
+    Server -->|WebSocket :8765<br/>TELEMETRY_UPDATE| Frontend
+    Server -->|MJPEG :5000<br/>/video_feed| Frontend
+
+    subgraph Frontend [Frontend — React Dashboard]
+        direction TB
+        WS[simulatorService.js<br/>WebSocket Client] --> Dashboard[Command Center Dashboard]
+        Video["&lt;img&gt; MJPEG Feed"] --> Dashboard
+        Dashboard --> CovMap[2D GIS Coverage Map]
+        Dashboard --> Fleet[Drone Fleet Cards<br/>ACTIVE / STUCK / IDLE]
+    end
+
+    Server -.->|frames, planned/optional| Perception[perception/main.py<br/>FastAPI YOLOv8 /detect]
+
+    subgraph WebSim [Standalone — 3D Web Simulator]
+        direction TB
+        VSJS[web/swarm/VectorSwarm.js<br/>JS port of APF engine] --> SimLoop[SimulationLoop.js<br/>60Hz Fixed-Step]
+        SimLoop --> ThreeJS[SceneManager.js<br/>Three.js Renderer]
+        Heightmap[Heightmap.js<br/>Perlin Terrain] --> ThreeJS
+    end
+
+    style SwarmCtrl fill:#d97706,stroke:#b45309,color:#fff
+    style APF fill:#059669,stroke:#047857,color:#fff
+    style Server fill:#2563eb,stroke:#1d4ed8,color:#fff
+    style Backend fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style Frontend fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style WebSim fill:#3f2d1e,stroke:#78350f,color:#e2e8f0
+```
+
+**Note:** The standalone `web/` Three.js simulator uses its own JS port of the APF engine and does not currently connect to the PyBullet backend's WebSocket/MJPEG streams — it's a separate, self-contained sandbox environment.
 
 ## Contributing
 
