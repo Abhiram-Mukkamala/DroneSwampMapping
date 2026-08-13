@@ -9,6 +9,8 @@
 import { SimulationLoop } from './core/index.js';
 import { SceneManager, DroneRenderer, CameraControls, DroneCamera } from './render/index.js';
 import { ControlPanel } from './ui/ControlPanel.js';
+import { getTerrainData, getObstacles, setTerrainSeed } from './data/index.js';
+import { SCENARIOS } from './data/scenarios.js';
 import {
   startPerceptionLoop,
   stopPerceptionLoop,
@@ -17,6 +19,16 @@ import {
   getLastInferenceMs,
 } from './perception/index.js';
 
+// ---- Active Scenario State (Defaults to 'open_field') ----
+let activeScenario = SCENARIOS[0];
+
+function refreshTerrain(scenario = activeScenario) {
+  setTerrainSeed(scenario.seed, scenario.heightScale);
+  const terrainData = getTerrainData();
+  const obstacles = getObstacles();
+  sceneManager.updateTerrain(terrainData, obstacles);
+}
+
 // ---- Bootstrap ----
 
 const canvas = document.getElementById('viewport');
@@ -24,6 +36,9 @@ const sceneManager = new SceneManager(canvas);
 const droneRenderer = new DroneRenderer(sceneManager.scene);
 const cameraControls = new CameraControls(sceneManager.camera, canvas);
 const droneCamera = new DroneCamera(320, 240);
+
+// Initialize terrain visuals for active scenario
+refreshTerrain(activeScenario);
 
 const sim = new SimulationLoop();
 sim.reset(0);
@@ -51,6 +66,7 @@ const panel = new ControlPanel({
     const count = parseInt(document.getElementById('drone-slider').value, 10);
     sim.reset(count);
     droneRenderer.clear();
+    refreshTerrain(activeScenario);
     panel.updateDroneSelect(count);
     sim.start();
   },
@@ -121,6 +137,7 @@ window.addEventListener('message', (event) => {
     case 'RESET_SIMULATION':
       sim.reset(payload?.count || 0);
       droneRenderer.clear();
+      refreshTerrain(activeScenario);
       sendToDashboard('SIMULATION_RESET');
       break;
   }
