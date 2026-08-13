@@ -1,3 +1,9 @@
+# SUPERSEDED: generate_protocol_beta() and generate_protocol_gamma() have been
+# relocated to backend/perfect_swarm.py as first-class engine functions.
+# tests/generate_fixture_beta_gamma.py now imports from backend.perfect_swarm.
+# tests/test_protocol_beta_gamma.js only reads the fixture JSON — it does NOT
+# reference this file. This file can be safely deleted once confirmed nothing
+# else imports from it.
 import numpy as np
 
 
