@@ -4,10 +4,13 @@
  * Reads DOM elements from index.html, wires callbacks.
  */
 
+import { SCENARIOS } from '../data/scenarios.js';
+
 export class ControlPanel {
   /**
    * @param {object} callbacks
    * @param {function(number)} callbacks.onDroneCountChange
+   * @param {function(string)} callbacks.onScenarioChange
    * @param {function()} callbacks.onPlayPause
    * @param {function()} callbacks.onReset
    * @param {function(number)} callbacks.onSelectDrone
@@ -17,6 +20,7 @@ export class ControlPanel {
     this.callbacks = callbacks;
 
     // Control panel DOM elements
+    this.scenarioSelect = document.getElementById('scenario-select');
     this.droneSlider = document.getElementById('drone-slider');
     this.droneCountLabel = document.getElementById('drone-count');
     this.playPauseBtn = document.getElementById('play-pause-btn');
@@ -45,6 +49,19 @@ export class ControlPanel {
     this._isPlaying = true;
     this._povVisible = true;
     this.selectedDroneId = 0;
+
+    // Populate scenario options
+    this.populateScenarios(SCENARIOS);
+
+    // Wire scenario selector
+    if (this.scenarioSelect) {
+      this.scenarioSelect.addEventListener('change', () => {
+        const scenarioId = this.scenarioSelect.value;
+        if (this.callbacks.onScenarioChange) {
+          this.callbacks.onScenarioChange(scenarioId);
+        }
+      });
+    }
 
     // Wire main controls
     this.droneSlider.addEventListener('input', () => {
@@ -207,6 +224,23 @@ export class ControlPanel {
     this.physicsDisplay.textContent = stats.physicsTicks;
     this.countDisplay.textContent = stats.droneCount;
     this.batteryDisplay.textContent = (stats.avgBattery * 100).toFixed(0) + '%';
+  }
+
+  /**
+   * Populate the scenario dropdown selector.
+   * @param {Array<object>} scenarios
+   * @param {string} [activeId='open_field']
+   */
+  populateScenarios(scenarios, activeId = 'open_field') {
+    if (!this.scenarioSelect) return;
+    this.scenarioSelect.innerHTML = '';
+    for (const sc of scenarios) {
+      const opt = document.createElement('option');
+      opt.value = sc.id;
+      opt.textContent = sc.name;
+      if (sc.id === activeId) opt.selected = true;
+      this.scenarioSelect.appendChild(opt);
+    }
   }
 }
 

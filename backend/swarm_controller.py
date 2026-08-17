@@ -4,9 +4,10 @@ swarm_controller.py
 Bridge between VectorSwarm APF physics engine and PyBullet simulation environment.
 
 Manages a list of FollowerDrone objects in sync with an authoritative VectorSwarm
-instance. Computes per-drone target vectors for circular orbit formation, executes
-VectorSwarm.step(), updates PyBullet rigid body transforms via resetBasePositionAndOrientation
-and resetBaseVelocity, and syncs telemetry properties (such as last_dist_to_target).
+instance. Computes per-drone target vectors based on the active formation mode
+(orbit / beta / gamma), executes VectorSwarm.step(), updates PyBullet rigid body
+transforms via resetBasePositionAndOrientation and resetBaseVelocity, and syncs
+telemetry properties (such as last_dist_to_target).
 """
 
 from __future__ import annotations
@@ -19,17 +20,21 @@ except ImportError:
     pass
 
 from master_sim import FollowerDrone
-from perfect_swarm import VectorSwarm
+from perfect_swarm import VectorSwarm, generate_protocol_beta, generate_protocol_gamma
 
 
 class SwarmController:
     """
     Coordinates VectorSwarm physics state with PyBullet bodies for a fleet of FollowerDrones.
     """
+    _VALID_MODES = ("orbit", "beta", "gamma")
+
     def __init__(self, obstacle_boxes: np.ndarray | None = None):
         self.followers: list[FollowerDrone] = []
         self.swarm = VectorSwarm(num_drones=0, start_positions=np.zeros((0, 3), dtype=np.float32))
         self.obstacle_boxes = obstacle_boxes if obstacle_boxes is not None else np.zeros((0, 6), dtype=np.float32)
+        self._formation_mode: str = "orbit"
+        self._formation_params: dict = {}
 
     def set_obstacle_boxes(self, obstacle_boxes: np.ndarray):
         """Set or update the obstacle AABB bounding boxes array."""
@@ -65,11 +70,74 @@ class SwarmController:
         self.swarm = VectorSwarm(num_drones=0, start_positions=np.zeros((0, 3), dtype=np.float32))
         return removed_list
 
+    def set_formation(self, mode: str, **params) -> None:
+        """
+        Set the active formation mode for per-drone target computation.
+
+        Parameters
+        ----------
+        mode : str
+            One of "orbit" (default circular orbit around leader),
+            "beta" (linear sweep via generate_protocol_beta), or
+            "gamma" (encirclement ring via generate_protocol_gamma).
+        **params :
+            Mode-specific overrides.
+            - beta: start_point, end_point, altitude
+            - gamma: radius, altitude
+            If not specified, sensible defaults are derived from the
+            leader position at each tick.
+        """
+        if mode not in self._VALID_MODES:
+            raise ValueError(f"Unknown formation mode {mode!r}; expected one of {self._VALID_MODES}")
+        self._formation_mode = mode
+        self._formation_params = dict(params)
+
+    def _compute_targets(self, red_pos: np.ndarray, sim_time: float) -> np.ndarray:
+        """
+        Compute (D, 3) per-drone target array based on the active formation mode.
+        """
+        n = len(self.followers)
+
+        if self._formation_mode == "beta":
+            # Derive sensible defaults: sweep line centered on leader, 20m wide
+            half_width = self._formation_params.get("half_width", 10.0)
+            start_point = self._formation_params.get(
+                "start_point",
+                [red_pos[0] - half_width, red_pos[1], 0.0],
+            )
+            end_point = self._formation_params.get(
+                "end_point",
+                [red_pos[0] + half_width, red_pos[1], 0.0],
+            )
+            altitude = self._formation_params.get("altitude", float(red_pos[2]))
+            return generate_protocol_beta(n, start_point, end_point, altitude).astype(np.float32)
+
+        elif self._formation_mode == "gamma":
+            center = self._formation_params.get(
+                "center",
+                [float(red_pos[0]), float(red_pos[1])],
+            )
+            radius = self._formation_params.get("radius", 15.0)
+            altitude = self._formation_params.get("altitude", float(red_pos[2]))
+            return generate_protocol_gamma(n, center, radius, altitude).astype(np.float32)
+
+        else:
+            # Default: circular orbit around leader (original behavior)
+            targets = np.zeros((n, 3), dtype=np.float32)
+            for i, follower in enumerate(self.followers):
+                angle = follower.offset_angle + sim_time * 0.35
+                targets[i] = [
+                    red_pos[0] + follower.orbit_radius * math.cos(angle),
+                    red_pos[1] + follower.orbit_radius * math.sin(angle),
+                    red_pos[2] + 0.5 * math.sin(sim_time + follower.offset_angle),
+                ]
+            return targets
+
     def step(self, red_pos: np.ndarray, sim_time: float, dt: float):
         """
         Advance swarm physics by one tick.
 
-        1. Computes per-drone target positions in circular orbit formation around red_pos.
+        1. Computes per-drone target positions based on active formation mode.
         2. Steps VectorSwarm with (D, 3) per-drone targets and obstacle_boxes.
         3. Writes updated positions & velocities into PyBullet bodies via
            resetBasePositionAndOrientation and resetBaseVelocity.
@@ -79,15 +147,8 @@ class SwarmController:
         if n == 0:
             return
 
-        # 1. Build (D, 3) per-drone target orbit array
-        targets = np.zeros((n, 3), dtype=np.float32)
-        for i, follower in enumerate(self.followers):
-            angle = follower.offset_angle + sim_time * 0.35
-            targets[i] = [
-                red_pos[0] + follower.orbit_radius * math.cos(angle),
-                red_pos[1] + follower.orbit_radius * math.sin(angle),
-                red_pos[2] + 0.5 * math.sin(sim_time + follower.offset_angle),
-            ]
+        # 1. Build (D, 3) per-drone target array from active formation
+        targets = self._compute_targets(red_pos, sim_time)
 
         # 2. Step VectorSwarm engine
         new_positions = self.swarm.step(targets, self.obstacle_boxes, dt)

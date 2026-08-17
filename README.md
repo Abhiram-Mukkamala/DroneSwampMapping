@@ -28,11 +28,72 @@ The simulation includes a real-time **Vision Engine** generating synthetic **RGB
 
 ---
 
-## 📁 Repository Structure
 
-```text
-├── master_sim.py       # Main simulation loop, FPS flight controller & swarm AI logic
-├── city_layout.py     # Procedural 3D city generator with concave mesh collision bounds
-├── vision_engine.py   # Synthetic camera engine (RGB, Depth, Segmentation Masks)
-├── requirements.txt   # Required Python dependencies
-└── README.md          # Project documentation
+## Overview
+This branch integrates the standalone WebSocket perception pipeline directly into the PyBullet physics backend (`master_sim_server.py`). It enables real-time Artificial Potential Fields (APF) repulsion by mathematically translating YOLOv8 bounding boxes into a 2D dynamic hazard grid.
+
+## Architectural Modifications
+
+| Module | Location | Implementation Details |
+| :--- | :--- | :--- |
+| `PipelineNode` | `backend/data_pipeline.py` | Converted from a standalone server to an importable module. Enforces canonical `DroneState` schema. Maps bounding boxes to grid coordinates. |
+| `master_sim_server.py` | `backend/master_sim_server.py` | Ingests the pipeline node. Routes WebSocket `yolo_detections` directly to the `ObstacleMap` class. |
+| `ObstacleMap` | `backend/obstacle_map.py` | Ingests the 2D grid. Applies a localized moat repulsion force when a drone's spatial coordinates intersect an active hazard cell. |
+| `test_client.py` | `backend/test_client.py` | Mock WebSocket client that transmits synthetic perception payloads for end-to-end integration verification. |
+
+---
+
+## Mathematical Integration (APF Repulsion)
+The `PipelineNode` extracts the bounding box parameters $(x, y, w, h)$ and normalizes them against the defined cell size ($c$) to populate the 2D grid:
+
+$$gx=\left\lfloor\frac{x}{c}\right\rfloor,\quad gy=\left\lfloor\frac{y}{c}\right\rfloor$$
+
+The `ObstacleMap` checks the drone's position vector $\vec{p}$ against the grid. If the discrete cell value equals $1$, the system applies a fixed repulsive vector $\vec{F}_{\text{rep}}$ to the horizontal axes:
+
+$$\vec{F}_{\text{rep}}=\begin{bmatrix}-150.0\\-150.0\\0.0\end{bmatrix}$$
+
+---
+
+## Canonical Data Contracts
+
+### Perception Payload (Input)
+```json
+{
+  "type": "yolo_detections",
+  "payload": [
+    {
+      "class": "obstacle",
+      "bbox": [10.0, 10.0, 20.0, 20.0],
+      "confidence": 0.99
+    }
+  ]
+}
+
+Hazard Grid (Internal Routing)
+
+{
+  "type": "hazard_map",
+  "payload": {
+    "grid": [[0, 0], [0, 1]],
+    "cellSize": 5
+  }
+}
+---
+Integration Verification Procedures
+Open the primary terminal and initialize the master simulation server.
+
+Open the secondary terminal and execute the mock perception client.
+
+Verify the primary terminal logs the calculated repulsion force.
+---
+Execution Commands
+
+cd backend
+python master_sim_server.py
+
+cd backend
+python test_client.py
+
+---
+Expected Output Log
+🔥 PROOF: Dynamic Repulsion Force Calculated -> [-150. -150.   0.]

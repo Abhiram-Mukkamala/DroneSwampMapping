@@ -65,17 +65,23 @@ export class SimulationLoop {
   // ---- Drone management ----
 
   /**
-   * Add N drones with random positions in the spawn region and random velocities.
+   * Add N drones with specified or random positions in the spawn region.
    * @param {number} count
+   * @param {Array<{x:number, y:number, z:number}>} [startPositions]
    */
-  addDrones(count) {
+  addDrones(count, startPositions = null) {
     for (let i = 0; i < count; i++) {
+      const pos = (startPositions && startPositions[i]) ? {
+        x: startPositions[i].x,
+        y: startPositions[i].y,
+        z: startPositions[i].z,
+      } : {
+        x: rand(SPAWN.minX, SPAWN.maxX),
+        y: rand(SPAWN.minY, SPAWN.maxY),
+        z: rand(SPAWN.minZ, SPAWN.maxZ),
+      };
       const drone = new Drone(this._idCounter++, {
-        position: {
-          x: rand(SPAWN.minX, SPAWN.maxX),
-          y: rand(SPAWN.minY, SPAWN.maxY),
-          z: rand(SPAWN.minZ, SPAWN.maxZ),
-        },
+        position: pos,
         velocity: {
           x: rand(-INIT_SPEED.max, INIT_SPEED.max),
           y: rand(-1, 1),
@@ -123,13 +129,14 @@ export class SimulationLoop {
   /**
    * Reset: clear all drones, respawn the given count, reset tick counter.
    * @param {number} [droneCount=10]
+   * @param {Array<{x:number, y:number, z:number}>} [startPositions]
    */
-  reset(droneCount = 10) {
+  reset(droneCount = 10, startPositions = null) {
     this.drones = [];
     this._accumulator = 0;
     this.tickCount = 0;
     this._idCounter = 0;
-    this.addDrones(droneCount);
+    this.addDrones(droneCount, startPositions);
   }
 
   // ---- Per-frame update (called from requestAnimationFrame) ----

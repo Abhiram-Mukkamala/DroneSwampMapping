@@ -4,6 +4,9 @@
  * Arena: 500 × 500m ground plane with grid, Y-up coordinate system.
  */
 
+import { TerrainRenderer } from './TerrainRenderer.js';
+import { getTerrainData, getObstacles } from '../data/index.js';
+
 export class SceneManager {
   constructor(canvas) {
     // --- Renderer ---
@@ -34,11 +37,27 @@ export class SceneManager {
     // --- Ground plane ---
     this._createGround();
 
+    // --- Terrain Renderer ---
+    this.terrainRenderer = new TerrainRenderer(this.scene);
+    this.updateTerrain();
+
     // --- Lighting ---
     this._createLights();
 
     // --- Resize handler ---
     window.addEventListener('resize', () => this._onResize());
+  }
+
+  /**
+   * Render or regenerate terrain meshes in scene using terrainData & obstacles.
+   * Defaults to pulling from data module if omitted.
+   * @param {{ grid: number[][], cellSize: number }} [terrainData]
+   * @param {Array<object>} [obstacles]
+   */
+  updateTerrain(terrainData, obstacles) {
+    const data = terrainData || getTerrainData();
+    const obs = obstacles || getObstacles();
+    this.terrainRenderer.renderTerrain(data, obs);
   }
 
   _createGround() {

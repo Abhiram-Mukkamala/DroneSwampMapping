@@ -27,6 +27,85 @@ import numpy as np
 from obstacle_map import obstacle_repulsion_force
 
 
+# ------------------------------------------------------------------
+# Formation protocol target generators
+# ------------------------------------------------------------------
+
+def generate_protocol_beta(
+    n_drones: int,
+    start_point: list,
+    end_point: list,
+    altitude: float = 20.0,
+) -> np.ndarray:
+    """
+    Protocol Beta (Search & Rescue / Linear Sweep).
+
+    Linear axis interpolation forming an evenly spaced horizontal sweep line
+    between two endpoints, all at a fixed altitude.
+
+    Parameters
+    ----------
+    n_drones : int
+        Number of drones to distribute along the line.
+    start_point : list
+        Starting endpoint [x, y, ...] (only first two elements used).
+    end_point : list
+        Ending endpoint [x, y, ...] (only first two elements used).
+    altitude : float
+        Uniform flight altitude for the sweep line (axis 2).
+
+    Returns
+    -------
+    np.ndarray of shape (n_drones, 3)
+        Per-drone target positions suitable for VectorSwarm.step().
+    """
+    start_pt = np.array(start_point[:2], dtype=float)
+    end_pt = np.array(end_point[:2], dtype=float)
+    if n_drones == 1:
+        points = np.array([start_pt])
+    else:
+        t = np.linspace(0, 1, n_drones)[:, None]
+        points = start_pt + t * (end_pt - start_pt)
+    altitudes = np.full((n_drones, 1), altitude)
+    return np.hstack([points, altitudes])
+
+
+def generate_protocol_gamma(
+    n_drones: int,
+    center: list,
+    radius: float = 15.0,
+    altitude: float = 20.0,
+) -> np.ndarray:
+    """
+    Protocol Gamma (Dynamic Encirclement).
+
+    Trigonometric distribution forming a 360° dynamic containment ring
+    around target coordinates at a fixed altitude.
+
+    Parameters
+    ----------
+    n_drones : int
+        Number of drones to distribute around the ring.
+    center : list
+        Center of the encirclement ring [x, y].
+    radius : float
+        Radius of the containment ring.
+    altitude : float
+        Uniform flight altitude for the ring (axis 2).
+
+    Returns
+    -------
+    np.ndarray of shape (n_drones, 3)
+        Per-drone target positions suitable for VectorSwarm.step().
+    """
+    indices = np.arange(n_drones)
+    angles = 2 * np.pi * indices / n_drones
+    x = center[0] + radius * np.cos(angles)
+    y = center[1] + radius * np.sin(angles)
+    z = np.full(n_drones, altitude)
+    return np.column_stack([x, y, z])
+
+
 class VectorSwarm:
     """
     Holds the live physics state (position + velocity) for N follower
