@@ -17,7 +17,7 @@ import sys
 import json
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from backend.perfect_swarm import generate_protocol_beta, generate_protocol_gamma
+from perfect_swarm import generate_protocol_beta, generate_protocol_gamma
 
 # Representative scenarios: varying drone counts + edge cases (1 drone, max swarm size)
 BETA_SCENARIOS = [

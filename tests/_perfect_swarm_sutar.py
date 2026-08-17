@@ -1,10 +1,4 @@
-# SUPERSEDED: generate_protocol_beta() and generate_protocol_gamma() have been
-# relocated to backend/perfect_swarm.py as first-class engine functions.
-# tests/generate_fixture_beta_gamma.py now imports from backend.perfect_swarm.
-# tests/test_protocol_beta_gamma.js only reads the fixture JSON — it does NOT
-# reference this file. This file can be safely deleted once confirmed nothing
-# else imports from it.
-import numpy as np
+﻿import numpy as np
 
 
 def generate_protocol_beta(n_drones: int, start_point: list, end_point: list, altitude: float = 20.0) -> np.ndarray:
@@ -26,7 +20,7 @@ def generate_protocol_beta(n_drones: int, start_point: list, end_point: list, al
 def generate_protocol_gamma(n_drones: int, center: list, radius: float = 15.0, altitude: float = 20.0) -> np.ndarray:
     """
     Protocol Gamma (Dynamic Encirclement):
-    Trigonometric distribution forming a 360° dynamic containment ring around target coordinates.
+    Trigonometric distribution forming a 360┬░ dynamic containment ring around target coordinates.
     """
     indices = np.arange(n_drones)
     angles = 2 * np.pi * indices / n_drones
