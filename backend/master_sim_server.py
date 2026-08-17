@@ -15,9 +15,13 @@ async def master_router(websocket):
             hazard_map = pipeline.process_yolo_detections(packet["payload"])
             obs_map.update_dynamic_grid(hazard_map["grid"], hazard_map["cellSize"])
             
-            # Compute repulsion and attach it to the hazard map
-            repulsion_vector = obs_map.calculate_repulsion([12.0, 12.0, 0.0])
-            hazard_map["repulsion"] = repulsion_vector.tolist() 
+            repulsion_forces = {}
+            for d_id, state in pipeline.telemetry_stream.items():
+                pos = [state["position"]["x"], state["position"]["y"], state["position"]["z"]]
+                force = obs_map.calculate_repulsion(pos)
+                repulsion_forces[d_id] = force.tolist()
+                
+            hazard_map["repulsion"] = repulsion_forces
             
             await websocket.send(json.dumps({"type": "hazard_map", "payload": hazard_map}))
             

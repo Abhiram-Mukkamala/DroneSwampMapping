@@ -14,7 +14,6 @@ class ObstacleMap:
     def calculate_repulsion(self, drone_pos):
         force = np.zeros(3)
         
-        # Explicitly handle missing grid/out-of-bounds to appease code review
         if self.dynamic_grid is None:
             return force
 
@@ -27,3 +26,8 @@ class ObstacleMap:
                 force[1] -= self.moat_repulsion
                 
         return force
+
+_global_obs_map = ObstacleMap()
+
+def obstacle_repulsion_force(drone_pos):
+    return _global_obs_map.calculate_repulsion(drone_pos)
