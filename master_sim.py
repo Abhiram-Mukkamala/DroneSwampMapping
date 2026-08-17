@@ -128,9 +128,41 @@ class FollowerDrone:
         return self.offset_angle
 
 
-def create_drone(position: list[float], color: list[float], radius: float = 0.45, mass: float = 0.8) -> int:
-    col_id = p.createCollisionShape(p.GEOM_SPHERE, radius=radius)
-    vis_id = p.createVisualShape(p.GEOM_SPHERE, radius=radius, rgbaColor=color)
+import math
+import pybullet as p
+
+def create_drone(
+    position: list[float], 
+    color: list[float], 
+    radius: float = 1.0,         
+    obj_path: str = "drone.obj", 
+    scale: float = 0.7,      #Size    
+    mass: float = 0.8,
+    mesh_rotation_euler: list[float] = [math.radians(90), 0, 0] # Model axis fix
+) -> int:
+    """
+    Spawns a scaled-up drone with a baked-in visual mesh orientation offset
+    so flight controls and yaw turning don't flip the model standing up.
+    """
+    # 1. Convert Euler angles to quaternion for the visual frame offset
+    mesh_orient = p.getQuaternionFromEuler(mesh_rotation_euler)
+
+    # 2. Visual mesh (Rotated permanently relative to the physics body)
+    vis_id = p.createVisualShape(
+        shapeType=p.GEOM_MESH,
+        fileName=obj_path,
+        meshScale=[scale, scale, scale],
+        rgbaColor=color,
+        visualFrameOrientation=mesh_orient 
+    )
+    
+    # 3. Bounding sphere collision shape
+    col_id = p.createCollisionShape(
+        shapeType=p.GEOM_SPHERE,
+        radius=radius
+    )
+    
+    # 4. Create the physical body
     return p.createMultiBody(
         baseMass=mass,
         baseCollisionShapeIndex=col_id,
