@@ -13,13 +13,17 @@ class ObstacleMap:
 
     def calculate_repulsion(self, drone_pos):
         force = np.zeros(3)
-        if self.dynamic_grid is not None:
-            gx = int(drone_pos[0] // self.cell_size)
-            gy = int(drone_pos[1] // self.cell_size)
-            
-            if 0 <= gy < self.dynamic_grid.shape[0] and 0 <= gx < self.dynamic_grid.shape[1]:
-                if self.dynamic_grid[gy, gx] == 1:
-                    force[0] -= self.moat_repulsion
-                    force[1] -= self.moat_repulsion
-                    
-                return force
+        
+        # Explicitly handle missing grid/out-of-bounds to appease code review
+        if self.dynamic_grid is None:
+            return force
+
+        gx = int(drone_pos[0] // self.cell_size)
+        gy = int(drone_pos[1] // self.cell_size)
+        
+        if 0 <= gy < self.dynamic_grid.shape[0] and 0 <= gx < self.dynamic_grid.shape[1]:
+            if self.dynamic_grid[gy, gx] == 1:
+                force[0] -= self.moat_repulsion
+                force[1] -= self.moat_repulsion
+                
+        return force

@@ -9,15 +9,25 @@ class PipelineNode:
 
     def process_yolo_detections(self, detections):
         self.grid.fill(0)
+        max_h, max_w = self.grid.shape
         
         for det in detections:
             if det.get("class") == "obstacle":
                 x, y, w, h = det["bbox"]
+                
+                # Calculate raw grid indices
                 gx = int(x // self.cell_size)
                 gy = int(y // self.cell_size)
                 gw = max(1, int(w // self.cell_size))
                 gh = max(1, int(h // self.cell_size))
-                self.grid[gy:gy+gh, gx:gx+gw] = 1
+                
+                # Clamp boundaries to grid dimensions to prevent IndexError
+                gy_start = max(0, min(gy, max_h))
+                gx_start = max(0, min(gx, max_w))
+                gy_end = max(0, min(gy + gh, max_h))
+                gx_end = max(0, min(gx + gw, max_w))
+                
+                self.grid[gy_start:gy_end, gx_start:gx_end] = 1
                 
         return self.broadcast_hazard_map()
 
