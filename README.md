@@ -97,3 +97,13 @@ python test_client.py
 ---
 Expected Output Log
 🔥 PROOF: Dynamic Repulsion Force Calculated -> [-150. -150.   0.]
+
+## License
+
+*(Not yet specified — add a LICENSE file to make usage terms explicit.)*
+
+## Tech Debt & Architecture Notes
+
+* **Root Vision Pipeline Cleaned Up**: Removed legacy root-level `vision_engine.py` (`YOLOVisionEngine`) and obsolete CLI test scripts that attempted to load a non-existent `best.onnx` file. Active vision processing is strictly handled by:
+  1. `backend/vision_engine.py` (`DroneVisionEngine`) for PyBullet camera feed (RGB/depth/segmentation).
+  2. The Dockerized YOLO service for browser simulation perception.
