@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback, useRef, useEffect } from 'react';
 
 // ---------------------------------------------------------------------------
 // View name constants — use these everywhere instead of raw strings
@@ -14,15 +14,23 @@ export const ViewProvider = ({ children }) => {
   const [primaryView,   setPrimaryView]   = useState(VIEW_SIMULATION);
   const [secondaryView, setSecondaryViewState] = useState(VIEW_SWARM_3D);
 
+  // Refs that always hold the latest view values so functional updaters
+  // inside setPrimaryView / setSecondaryViewState never close over stale state.
+  const primaryViewRef   = useRef(primaryView);
+  const secondaryViewRef = useRef(secondaryView);
+  useEffect(() => { primaryViewRef.current   = primaryView;   }, [primaryView]);
+  useEffect(() => { secondaryViewRef.current = secondaryView; }, [secondaryView]);
+
   /**
    * Swap primary and secondary views with each other.
+   * Derived purely from refs so the closure is always fresh.
    */
   const swapViews = useCallback(() => {
-    setPrimaryView(prev => {
-      setSecondaryViewState(prev);   // secondary becomes old primary
-      return secondaryView;          // primary becomes old secondary
-    });
-  }, [secondaryView]);
+    const oldPrimary   = primaryViewRef.current;
+    const oldSecondary = secondaryViewRef.current;
+    setPrimaryView(oldSecondary);
+    setSecondaryViewState(oldPrimary);
+  }, []);  // no deps — reads current values via refs at call time
 
   /**
    * Change the secondary slot to `view`.
@@ -30,12 +38,12 @@ export const ViewProvider = ({ children }) => {
    * so we never end up with the same view in both slots.
    */
   const setSecondaryView = useCallback((view) => {
-    if (view === primaryView) {
+    if (view === primaryViewRef.current) {
       // promote current secondary to primary to avoid duplicate
-      setPrimaryView(secondaryView);
+      setPrimaryView(secondaryViewRef.current);
     }
     setSecondaryViewState(view);
-  }, [primaryView, secondaryView]);
+  }, []);  // no deps — reads current values via refs at call time
 
   return (
     <ViewContext.Provider value={{

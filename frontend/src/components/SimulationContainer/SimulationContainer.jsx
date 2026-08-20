@@ -8,9 +8,17 @@ const SimulationContainer = () => {
   const { isConnected, sendCommand } = useSimulation();
   const [streamError, setStreamError] = useState(false);
   const lastX = useRef(null);
+  // Track which keys are currently held so we can flush them on disconnect
+  const heldKeys = useRef(new Set());
 
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected) {
+      // Connection dropped — release every key that was held so the backend
+      // doesn't see them as stuck-down after reconnect
+      heldKeys.current.forEach((key) => sendCommand('KEY_UP', { key }));
+      heldKeys.current.clear();
+      return;
+    }
 
     const handleKeyDown = (e) => {
       const key = e.key.toLowerCase();
@@ -19,13 +27,17 @@ const SimulationContainer = () => {
         if (key === ' ' || key === 'shift') {
           e.preventDefault();
         }
-        sendCommand('KEY_DOWN', { key });
+        if (!heldKeys.current.has(key)) {
+          heldKeys.current.add(key);
+          sendCommand('KEY_DOWN', { key });
+        }
       }
     };
 
     const handleKeyUp = (e) => {
       const key = e.key.toLowerCase();
       if (VALID_KEYS.includes(key)) {
+        heldKeys.current.delete(key);
         sendCommand('KEY_UP', { key });
       }
     };
@@ -36,6 +48,9 @@ const SimulationContainer = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      // Flush any still-held keys when the effect tears down
+      heldKeys.current.forEach((key) => sendCommand('KEY_UP', { key }));
+      heldKeys.current.clear();
     };
   }, [isConnected, sendCommand]);
 

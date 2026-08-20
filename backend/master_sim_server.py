@@ -20,18 +20,27 @@ import obstacle_map
 from schemas.drone_state import DroneState
 from swarm_controller import SwarmController
 
+# Initial red-drone state — used both for startup and full reset
+RED_START_POS = np.array([0.0, 0.0, 35.0], dtype=np.float64)
+RED_START_YAW = 0.0
+
 # Global state
 simulation_running = False
 swarm_controller = SwarmController()
-red_pos = np.array([0.0, 0.0, 35.0], dtype=np.float64)
-red_yaw = 0.0
+red_pos = RED_START_POS.copy()
+red_yaw = RED_START_YAW
 red_drone_id = None
 tick_count = 0
 clients = set()
 latest_jpeg_frame = None
 last_frame_time = 0.0
 frame_lock = threading.Lock()
-active_keys = set()
+# active_keys is a module-level set shared between the WebSocket handler and the
+# simulation loop. Both run on the same asyncio event loop so there is no true
+# concurrent access; cooperative scheduling means the sim loop cannot read the
+# set mid-write. The handler clears it in its finally block on disconnect and on
+# any EMERGENCY_STOP / RESET_SIMULATION so stale inputs never bleed into the next run.
+active_keys: set[str] = set()
 
 # Stuck detection: track per-drone low-velocity tick counts
 # NOTE: This concept mirrors (conceptually, not numerically) the stuck-detection logic in
@@ -109,7 +118,13 @@ async def handler(websocket):
                 for f in removed_list:
                     p.removeBody(f.drone_id)
                 _stuck_tick_counts.clear()
-                print("Emergency stop / Reset: all follower drones removed")
+                # Clear any held keys so they don't bleed into the next run
+                active_keys.clear()
+                # Reset red drone to its initial position/orientation
+                red_pos = RED_START_POS.copy()
+                red_yaw = RED_START_YAW
+                print("Emergency stop / Reset: all drones reset "
+                      "(followers removed, red drone state cleared)")
             elif msg_type == "ADD_DRONES":
                 count = payload.get("count", 1)
                 for _ in range(count):
@@ -131,17 +146,20 @@ async def handler(websocket):
                     print(f"Removed drone at sim index {drone_index}, {len(swarm_controller.followers)} remaining")
             elif msg_type == "KEY_DOWN":
                 k = payload.get("key")
-                if k: active_keys.add(k)
+                if k:
+                    active_keys.add(k)
             elif msg_type == "KEY_UP":
                 k = payload.get("key")
-                if k and k in active_keys:
-                    active_keys.remove(k)
+                if k:
+                    active_keys.discard(k)
             elif msg_type == "MOUSE_MOVE":
                 dx = payload.get("dx", 0)
                 if dx:
                     red_yaw -= float(dx) * 0.003
     finally:
-        clients.remove(websocket)
+        # Guarantee key state is wiped when the connection closes for any reason
+        active_keys.clear()
+        clients.discard(websocket)
 
 
 # ── Main simulation loop ──
