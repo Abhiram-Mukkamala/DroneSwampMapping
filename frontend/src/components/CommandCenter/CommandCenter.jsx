@@ -1,10 +1,17 @@
 import React from 'react';
 import './CommandCenter.css';
 import { useMission } from '../../contexts/MissionContext';
+import { useDrones } from '../../contexts/DroneContext';
 import { Play, Pause, Square } from 'lucide-react';
 
 const CommandCenter = () => {
   const { missionPhase, startMission, pauseMission, stopMission } = useMission();
+  const { clearDrones } = useDrones();
+
+  const handleAbort = () => {
+    stopMission();
+    clearDrones();
+  };
 
   return (
     <div className="command-center glass-panel">
@@ -27,7 +34,7 @@ const CommandCenter = () => {
           </button>
           <button 
             className={`cmd-btn stop ${missionPhase === 'STOPPED' ? 'active' : ''}`}
-            onClick={stopMission}
+            onClick={handleAbort}
           >
             <Square size={18} className="icon"/> ABORT
           </button>

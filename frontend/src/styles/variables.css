@@ -1,10 +1,10 @@
 :root {
   /* Colors - Dark Military Theme */
-  --color-bg-base: #0f172a; /* Slate 900 */
-  --color-panel-bg: rgba(30, 41, 59, 0.7); /* Slate 800 with opacity */
+  --color-bg-base: #28282B; /* Matte Black */
+  --color-panel-bg: rgba(40, 40, 43, 0.7); /* Matte Black with opacity */
   --color-panel-border: rgba(56, 189, 248, 0.2); /* Sky 400 with opacity */
-  --color-text-primary: #f8fafc; /* Slate 50 */
-  --color-text-secondary: #94a3b8; /* Slate 400 */
+  --color-text-primary: #ffffff; /* White */
+  --color-text-secondary: #e2e8f0; /* Lighter grey for better contrast */
   
   /* Accents & Glows */
   --color-accent-blue: #38bdf8; /* Sky 400 */

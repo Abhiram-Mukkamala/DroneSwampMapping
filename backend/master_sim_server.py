@@ -31,6 +31,7 @@ clients = set()
 latest_jpeg_frame = None
 last_frame_time = 0.0
 frame_lock = threading.Lock()
+active_keys = set()
 
 # Stuck detection: track per-drone low-velocity tick counts
 # NOTE: This concept mirrors (conceptually, not numerically) the stuck-detection logic in
@@ -46,7 +47,7 @@ _STUCK_DISTANCE_THRESHOLD = 1.5    # metres — distance to target slot must exc
 _STUCK_TICK_THRESHOLD = 60         # ~1 second at 60Hz before marking STUCK
 
 from vision_engine import DroneVisionEngine
-vision_engine = DroneVisionEngine(img_width=640, img_height=480, fov=90.0)
+vision_engine = DroneVisionEngine(img_width=640, img_height=480, fov=60.0)
 
 
 # ── Simple threaded MJPEG HTTP server (no aiohttp, no chunked encoding) ──
@@ -90,7 +91,7 @@ def start_mjpeg_server():
 # ── WebSocket handler ──
 
 async def handler(websocket):
-    global simulation_running, red_pos, red_yaw, red_drone_id, swarm_controller
+    global simulation_running, red_pos, red_yaw, red_drone_id, swarm_controller, active_keys
     clients.add(websocket)
     try:
         async for message in websocket:
@@ -100,8 +101,15 @@ async def handler(websocket):
 
             if msg_type == "START_SIMULATION":
                 simulation_running = True
-            elif msg_type == "PAUSE_SIMULATION" or msg_type == "EMERGENCY_STOP":
+            elif msg_type == "PAUSE_SIMULATION":
                 simulation_running = False
+            elif msg_type == "EMERGENCY_STOP" or msg_type == "RESET_SIMULATION":
+                simulation_running = False
+                removed_list = swarm_controller.clear()
+                for f in removed_list:
+                    p.removeBody(f.drone_id)
+                _stuck_tick_counts.clear()
+                print("Emergency stop / Reset: all follower drones removed")
             elif msg_type == "ADD_DRONES":
                 count = payload.get("count", 1)
                 for _ in range(count):
@@ -121,11 +129,17 @@ async def handler(websocket):
                     removed = swarm_controller.remove_follower(drone_index)
                     p.removeBody(removed.drone_id)
                     print(f"Removed drone at sim index {drone_index}, {len(swarm_controller.followers)} remaining")
-            elif msg_type == "RESET_SIMULATION":
-                removed_list = swarm_controller.clear()
-                for f in removed_list:
-                    p.removeBody(f.drone_id)
-                print("Simulation reset: all follower drones removed")
+            elif msg_type == "KEY_DOWN":
+                k = payload.get("key")
+                if k: active_keys.add(k)
+            elif msg_type == "KEY_UP":
+                k = payload.get("key")
+                if k and k in active_keys:
+                    active_keys.remove(k)
+            elif msg_type == "MOUSE_MOVE":
+                dx = payload.get("dx", 0)
+                if dx:
+                    red_yaw -= float(dx) * 0.003
     finally:
         clients.remove(websocket)
 
@@ -134,7 +148,7 @@ async def handler(websocket):
 
 async def simulation_loop():
     global simulation_running, red_pos, red_yaw, red_drone_id, swarm_controller
-    global tick_count, latest_jpeg_frame, last_frame_time
+    global tick_count, latest_jpeg_frame, last_frame_time, active_keys
 
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -146,6 +160,7 @@ async def simulation_loop():
     swarm_controller.set_obstacle_boxes(obstacle_boxes)
 
     red_drone_id = create_drone(red_pos.tolist(), color=[0.9, 0.1, 0.1, 1.0], radius=0.5, mass=0.0)
+    p.resetDebugVisualizerCamera(14.0, math.degrees(red_yaw) - 90.0, -25.0, red_pos.tolist())
 
     sim_time = 0.0
     dt = 1.0 / 60.0
@@ -166,26 +181,41 @@ async def simulation_loop():
 
             keys = p.getKeyboardEvents()
             move_speed = 0.3
+            yaw_speed = 0.05
             KEY_W, KEY_S, KEY_A, KEY_D = ord('w'), ord('s'), ord('a'), ord('d')
+            KEY_Q, KEY_E = ord('q'), ord('e')
             KEY_SPACE = ord(' ')
             KEY_LSHIFT = getattr(p, 'B3G_SHIFT', 65306)
 
-            if KEY_W in keys and keys[KEY_W] & p.KEY_IS_DOWN:
+            move_fwd = (KEY_W in keys and keys[KEY_W] & p.KEY_IS_DOWN) or ('w' in active_keys)
+            move_back = (KEY_S in keys and keys[KEY_S] & p.KEY_IS_DOWN) or ('s' in active_keys)
+            move_lft = (KEY_A in keys and keys[KEY_A] & p.KEY_IS_DOWN) or ('a' in active_keys)
+            move_rgt = (KEY_D in keys and keys[KEY_D] & p.KEY_IS_DOWN) or ('d' in active_keys)
+            move_up = (KEY_SPACE in keys and keys[KEY_SPACE] & p.KEY_IS_DOWN) or (' ' in active_keys)
+            move_down = (KEY_LSHIFT in keys and keys[KEY_LSHIFT] & p.KEY_IS_DOWN) or ('shift' in active_keys)
+            yaw_lft = (KEY_Q in keys and keys[KEY_Q] & p.KEY_IS_DOWN) or ('q' in active_keys)
+            yaw_rgt = (KEY_E in keys and keys[KEY_E] & p.KEY_IS_DOWN) or ('e' in active_keys)
+
+            if move_fwd:
                 red_pos[0] += move_speed * math.cos(red_yaw)
                 red_pos[1] += move_speed * math.sin(red_yaw)
-            if KEY_S in keys and keys[KEY_S] & p.KEY_IS_DOWN:
+            if move_back:
                 red_pos[0] -= move_speed * math.cos(red_yaw)
                 red_pos[1] -= move_speed * math.sin(red_yaw)
-            if KEY_A in keys and keys[KEY_A] & p.KEY_IS_DOWN:
+            if move_lft:
                 red_pos[0] -= move_speed * math.sin(red_yaw)
                 red_pos[1] += move_speed * math.cos(red_yaw)
-            if KEY_D in keys and keys[KEY_D] & p.KEY_IS_DOWN:
+            if move_rgt:
                 red_pos[0] += move_speed * math.sin(red_yaw)
                 red_pos[1] -= move_speed * math.cos(red_yaw)
-            if KEY_SPACE in keys and keys[KEY_SPACE] & p.KEY_IS_DOWN:
+            if move_up:
                 red_pos[2] += move_speed * 0.5
-            if KEY_LSHIFT in keys and keys[KEY_LSHIFT] & p.KEY_IS_DOWN:
+            if move_down:
                 red_pos[2] = max(1.5, red_pos[2] - move_speed * 0.5)
+            if yaw_lft:
+                red_yaw -= yaw_speed
+            if yaw_rgt:
+                red_yaw += yaw_speed
 
             p.resetBasePositionAndOrientation(red_drone_id, red_pos.tolist(), p.getQuaternionFromEuler([0, 0, red_yaw]))
             p.resetDebugVisualizerCamera(14.0, math.degrees(red_yaw) - 90.0, -25.0, red_pos.tolist())
@@ -242,9 +272,10 @@ async def simulation_loop():
         current_time = time.time()
         if current_time - last_frame_time > 0.041:
             last_frame_time = current_time
-            followers_list = swarm_controller.followers
-            cam_pos = followers_list[0].get_position() if followers_list else red_pos.tolist()
-            cam_yaw = followers_list[0].get_heading_angle() if followers_list else red_yaw
+            cam_pos = red_pos.tolist()
+            cam_yaw = red_yaw
+            p.resetBasePositionAndOrientation(red_drone_id, red_pos.tolist(), p.getQuaternionFromEuler([0, 0, red_yaw]))
+            p.resetDebugVisualizerCamera(14.0, math.degrees(red_yaw) - 90.0, -25.0, red_pos.tolist())
 
             try:
                 w, h, rgba, dep, seg = vision_engine.update_camera_view(

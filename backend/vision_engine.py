@@ -15,40 +15,52 @@ except ImportError:
 
 
 class DroneVisionEngine:
-    def __init__(self, img_width: int = 320, img_height: int = 240, fov: float = 75.0):
+    def __init__(self, img_width: int = 640, img_height: int = 480, fov: float = 60.0):
         self.width = img_width
         self.height = img_height
         self.fov = fov
         self.proj_matrix = p.computeProjectionMatrixFOV(
-            fov=self.fov, aspect=img_width / img_height, nearVal=0.1, farVal=100.0
+            fov=self.fov, aspect=img_width / img_height, nearVal=0.1, farVal=1000.0
         )
 
-    def update_camera_view(self, drone_pos: np.ndarray, heading_angle: float):
-        """Attaches synthetic camera lens to the front of a specified drone."""
-        dx, dy, dz = drone_pos[0], drone_pos[1], drone_pos[2]
+    def update_camera_view(self, drone_pos=None, heading_angle: float = 0.0):
+        """Generates the camera feed matching the exact PyBullet simulator main view."""
+        view_matrix = None
+        proj_matrix = self.proj_matrix
 
-        # Offset camera slightly forward (0.4m) from sphere center to avoid mesh clipping
-        cam_pos = [
-            dx + 0.4 * math.cos(heading_angle),
-            dy + 0.4 * math.sin(heading_angle),
-            dz + 0.1,
-        ]
-        target_pos = [
-            dx + 10.0 * math.cos(heading_angle),
-            dy + 10.0 * math.sin(heading_angle),
-            dz,
-        ]
+        # First try to grab the exact camera matrix from the live PyBullet GUI window
+        try:
+            cam_info = p.getDebugVisualizerCamera()
+            if cam_info is not None and len(cam_info) >= 4:
+                view_matrix = cam_info[2]
+                proj_matrix = cam_info[3]
+        except Exception:
+            pass
 
-        view_matrix = p.computeViewMatrix(
-            cameraEyePosition=cam_pos,
-            cameraTargetPosition=target_pos,
-            cameraUpVector=[0, 0, 1]
-        )
+        # Fallback to computing view matrix following the red drone
+        if view_matrix is None and drone_pos is not None:
+            view_matrix = p.computeViewMatrixFromYawPitchRoll(
+                cameraTargetPosition=drone_pos,
+                distance=14.0,
+                yaw=math.degrees(heading_angle) - 90.0,
+                pitch=-25.0,
+                roll=0,
+                upAxisIndex=2
+            )
 
-        return p.getCameraImage(
-            width=self.width,
-            height=self.height,
-            viewMatrix=view_matrix,
-            projectionMatrix=self.proj_matrix,
-            renderer=p.ER_TINY_RENDERER,
-        )
+        try:
+            return p.getCameraImage(
+                width=self.width,
+                height=self.height,
+                viewMatrix=view_matrix,
+                projectionMatrix=proj_matrix,
+                renderer=p.ER_BULLET_HARDWARE_OPENGL,
+            )
+        except Exception:
+            return p.getCameraImage(
+                width=self.width,
+                height=self.height,
+                viewMatrix=view_matrix,
+                projectionMatrix=proj_matrix,
+                renderer=p.ER_TINY_RENDERER,
+            )

@@ -8,18 +8,21 @@ import { MissionProvider } from './contexts/MissionContext';
 import { DroneProvider } from './contexts/DroneContext';
 import { TelemetryProvider } from './contexts/TelemetryContext';
 import { SimulationProvider } from './contexts/SimulationContext';
+import { ViewProvider } from './contexts/ViewContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <SimulationProvider>
-        <MissionProvider>
-          <DroneProvider>
-            <TelemetryProvider>
-              <App />
-            </TelemetryProvider>
-          </DroneProvider>
-        </MissionProvider>
+        <ViewProvider>
+          <MissionProvider>
+            <DroneProvider>
+              <TelemetryProvider>
+                <App />
+              </TelemetryProvider>
+            </DroneProvider>
+          </MissionProvider>
+        </ViewProvider>
       </SimulationProvider>
     </BrowserRouter>
   </React.StrictMode>,

@@ -67,7 +67,7 @@
   margin-bottom: var(--spacing-md);
   background: rgba(56, 189, 248, 0.08);
   border: 1px dashed var(--color-accent-blue-glow);
-  color: var(--color-accent-blue);
+  color: var(--color-text-primary);
   font-family: var(--font-family-mono);
   font-size: 0.75rem;
   letter-spacing: 1.5px;

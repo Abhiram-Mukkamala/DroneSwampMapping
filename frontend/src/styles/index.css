@@ -30,12 +30,12 @@ body, html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-accent-blue);
+  background: #333333;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-primary);
+  background: #555555;
 }
 
 .glass-panel {
